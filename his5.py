@@ -1,5 +1,6 @@
 import openai
 from fuzzywuzzy import fuzz
+import traceback
 
 openai.api_type = "azure"
 openai.api_base = "https://cymetriopen.openai.azure.com/"
@@ -19,12 +20,15 @@ def get_response_text(response):
     except (KeyError, IndexError):
         return None
 
-def chat_with_bot(user_input):
+def chat_with_bot(user_input, code=None):
     conversation_history.append({"role": "user", "content": user_input})
 
     message_text = [
         {"role": "system", "content": "You are an AI assistant that helps people find information."},
     ] + conversation_history
+
+    if code:
+        message_text.append({"role": "user", "content": f"Here is the code:\n{code}"})
 
     completion = openai.ChatCompletion.create(
         engine="tesrt",
@@ -43,22 +47,22 @@ def chat_with_bot(user_input):
 
     return response
 
-
 # Initial message
 print("Chatbot: Hello! How can I assist you today?")
 
 # Simulate an error in err.py
 error_found = False
 try:
-    exec(open("java_err.java").read())
+    code = open("err.py").read()
+    exec(code)
 except Exception as e:
     error_message = str(e)
     print("error_msg: ", error_message)
     error_found = True
     # Use the error message as input for the chatbot
     openai_solution_prompt = f"Solve the error: {error_message}"
-    openai_solution_response = chat_with_bot(openai_solution_prompt)
-    print("first_res_bot: ", openai_solution_response)
+    openai_solution_response = chat_with_bot(openai_solution_prompt, code)
+    print("Bot: ", openai_solution_response)
 
     user_input = input("Do you want to continue the conversation? (yes/no): ")
 
@@ -83,7 +87,7 @@ except Exception as e:
                 exit()  # Terminate the program
             
             response = chat_with_bot(user_input)
-            print("continue_resp: ",response)
+            print("Bot: ",response)
             
             # Use fuzzy logic to compare the current input with the previous responses
             for message in reversed(conversation_history):
@@ -100,4 +104,3 @@ except Exception as e:
 
 if not error_found:
     print("No error found")
-
