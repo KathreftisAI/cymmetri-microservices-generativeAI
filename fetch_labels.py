@@ -104,9 +104,115 @@ async def process_data(request: Request, data_url: str = Form(...)):
  
         # Fetch JSON data from the specified URL using httpx for asynchronous requests
         async with httpx.AsyncClient() as client:
-            response = await client.get(data_url)
+            '''
+
+
+            body
+: 
+"{\n    \"size\":10,\n    \"page\":1,\n    \"filter\":\"*\"\n}"
+headers
+: 
+Array(2)
+0
+: 
+{key: 'Authorization', value: 'Bearer afsafasf', included: true}
+1
+: 
+{key: 'Content-Type', value: 'application/json', included: true}
+length
+: 
+2
+[[Prototype]]
+: 
+Array(0)
+id
+: 
+1
+label
+: 
+"Node 1"
+params
+: 
+[]
+parentProperties
+: 
+[]
+requestMethod
+: 
+"GET"
+response
+: 
+""
+selectedNodeObj
+: 
+[[Prototype]]
+: 
+Object
+selectedNodes
+: 
+Array(0)
+length
+: 
+0
+[[Prototype]]
+: 
+Array(0)
+url
+: 
+""
+[[Prototype]]
+: 
+Object
+            '''
+
+            ### From lokesh's request --  you will get 4 things
+            # applicationId 
+            # body --> which you have to convert from JSON string to dictionary
+            # headers --> convert from [] to dictionary
+            # url --> use as-is (will be string)
+            # requestMethod --> will be a string; use with match as given below else use if-else ladder
+
+
+            # check if headers is empty
+            ### Parse body --- {\n    \"size\":10,\n    \"page\":1,\n    \"filter\":\"*\"\n} and take it as dictionary
+            #### Get url directly from requests
+            ### Get requestMethod from requestMethod
+            
+            ### you will get this as an array; convert each element of array 
+            
+            body_dict = {}
+            header_dict = {}
+            url_from_request = ""
+            requestMethod_from_request = ""
+
+
+            client.headers = header_dict
+            
+            
+            
+            ### into dict; such that key in the array element is your dict key and value is corresponding value
+            match requestMethod_from_request:
+                case "GET":
+                    # Call method for GET request
+                    response = client.get(url=request.data.url)
+                case "POST":
+                    # Call method for POST request
+                    ## if body is empty, skip the data field
+                    ## if body is not empty, use as below
+                    response = client.post(url=request.data.url, data=body_dict)
+                case "PUT":
+                    # Handle other request methods
+                    response = client.put(url=request.data.url, data=body_dict)
+
+                case "PATCH":
+                    response = client.patch(url=request.data.url, data=body_dict)
+
+                case "DELETE":
+                    response = client.delete(url=request.data.url)
+
+            #response = await client.get(data_url)
  
-        if response.status_code == 200:
+        if response.status_code >= 200 or response.status_code <= 204:
             # Assuming the response contains JSON data, you can parse it
             json_data = response.json()
  
@@ -179,8 +285,6 @@ async def process_data(request: Request, data_url: str = Form(...)):
     except Exception as e:
         #logging.error(f"An unexpected error occurred: {e}")
         raise HTTPException(status_code=500, detail=str(e))
- 
-    return JSONResponse(content=result)
 
 
 
