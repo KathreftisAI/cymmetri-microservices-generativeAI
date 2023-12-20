@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Processing Result</title>
+    <style>
+        /* Your existing styles remain unchanged */
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+ 
+        h1 {
+            color: #333;
+        }
+ 
+        p {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+            color: #555;
+        }
+ 
+        a {
+            text-decoration: none;
+            color: #4caf50;
+            font-weight: bold;
+        }
+ 
+        a:hover {
+            color: #45a049;
+        }
+ 
+        /* Additional styles for the table */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+ 
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+ 
+        th {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body>
+    <h1>Data Processing Result</h1>
+    <table>
+        <thead>
+            <tr>
+                <th>jsonPath</th>
+                <th>label</th>
+                <th>dataType</th>
+                <th>value</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for record in response_data %}
+                <tr>
+                    <td>{{ record.jsonPath }}</td>
+                    <td>{{ record.label }}</td>
+                    <td>{{ record.dataType }}</td>
+                    <td>{{ record.value }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <a href="/">Go Back</a>
+</body>
+</html>
