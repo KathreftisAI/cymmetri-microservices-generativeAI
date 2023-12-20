@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Chat with Bot</title>
+  <style>
+    body {
+      font-family: 'Arial', sans-serif;
+      margin: 20px;
+      background-color: #f4ebeb;
+      color: #333;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 30px;
+      color: #0b090a;
+    }
+
+    form {
+      max-width: 500px;
+      margin: 0 auto;
+      background-color: #fff;
+      padding: 40px;
+      border-radius: 20px;
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    label,
+    input,
+    textarea,
+    select,
+    input[type="submit"] {
+      display: block;
+      width: 100%;
+      margin-bottom: 25px;
+      padding: 15px;
+      font-size: 18px;
+      border: none;
+      border-radius: 8px;
+      transition: all 0.3s ease-in-out;
+      background-color: #f5f5f5;
+    }
+
+    input[type="submit"] {
+      background-color: #070807;
+      color: white;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    input[type="submit"]:hover {
+      background-color: #010201;
+    }
+
+    input,
+    textarea,
+    select {
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+    }
+
+    input:focus,
+    textarea:focus,
+    select:focus {
+      outline: none;
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+      transform: translateY(-5px);
+    }
+
+    input::placeholder,
+    textarea::placeholder,
+    select::placeholder {
+      color: #999;
+    }
+
+    input[type="submit"]:hover {
+      background-color: #4CAF50;
+      transform: translateY(-2px);
+      box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+    }
+
+    form::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: linear-gradient(45deg, #0b0c0b, #020202, #030303);
+      transition: all 0.5s;
+      z-index: -1;
+    }
+
+    form:hover::before {
+      transform: rotate(20deg);
+    }
+ 
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 30px;
+    }
+ 
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 12px;
+      text-align: left;
+    }
+ 
+    th {
+      background-color: #f2f2f2;
+      font-weight: bold;
+    }
+ 
+    #displayTable,
+    #displayNonMatchingTable {
+      margin-top: 30px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      padding: 20px;
+      background-color: #fff;
+    }
+  </style>
+</head>
+<body>
+  <h1>Chat with Bot</h1>
+  <form id="chatForm">
+    <label for="l1">List1:</label>
+    <input type="text" id="l1" name="l1" placeholder="Enter L1 elements">
+   
+    <label for="l2">List2:</label>
+    <input type="text" id="l2" name="l2" placeholder="Enter L2 elements">
+   
+    <label for="threshold">Threshold:</label>
+    <textarea id="threshold" name="threshold" placeholder="Enter threshold" rows="4" cols="50"></textarea>
+   
+    <input type="submit" value="Submit">
+  </form>
+ 
+  <div id="displayTable"></div>
+  <div id="displayNonMatchingTable"></div>
+ 
+  <script>
+    const stored_responses = [];
+ 
+    document.getElementById('chatForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const l1 = document.getElementById('l1').value.split(',').map(item => item.trim()).map(item => item.replace(/['\[\]]/g, ''));
+      const l2 = document.getElementById('l2').value.split(',').map(item => item.trim()).map(item => item.replace(/['\[\]]/g, ''));
+     
+      const threshold = document.getElementById('threshold').value;
+ 
+      fetch('/compare', {
+        method: 'POST',
+        body: new FormData(this),
+      })
+      .then(response => response.json())
+      .then(data => {
+        stored_responses.push(data.similar_elements);
+ 
+        // Matching Elements Table
+        const displayTableDiv = document.getElementById('displayTable');
+        displayTableDiv.innerHTML = '<h3>Matching Elements:</h3>';
+        const table = document.createElement('table');
+        table.innerHTML = '<tr><th>L1 Element</th><th>L2 Element</th></tr>';
+ 
+        l1.forEach((l1Element, index) => {
+          const matchedElement = data.similar_elements.find(responseItem => responseItem['element_name_l1'].trim().replace(/['\[\]]/g, '') === l1Element);
+ 
+          if (matchedElement) {
+            const row = table.insertRow();
+            row.insertCell(0).textContent = l1Element;
+           
+            const cell2 = row.insertCell(1);
+            const dropdown = document.createElement('select');
+            l2.forEach(l2Element => {
+              const option = document.createElement('option');
+              option.value = l2Element;
+              option.textContent = l2Element;
+ 
+              if (l2Element === matchedElement['element_name_l2']) {
+                option.selected = true; // Set matched value as selected
+              }
+ 
+              dropdown.appendChild(option);
+            });
+ 
+            cell2.appendChild(dropdown);
+          }
+        });
+ 
+        displayTableDiv.appendChild(table);
+ 
+        // Non-Matching Elements Table
+        const displayNonMatchingTableDiv = document.getElementById('displayNonMatchingTable');
+        displayNonMatchingTableDiv.innerHTML = '<h3>Non-Matching Elements:</h3>';
+        const nonMatchingTable = document.createElement('table');
+        nonMatchingTable.innerHTML = '<tr><th>L1 Elements</th><th>L2 Elements</th></tr>';
+ 
+        // Add logic to populate the non-matching table
+        const nonMatchingL1 = l1.filter(l1Element => !data.similar_elements.some(matchedElement => matchedElement['element_name_l1'].trim().replace(/['\[\]]/g, '') === l1Element));
+        const nonMatchingL2 = l2.filter(l2Element   => !data.similar_elements.some(matchedElement => matchedElement['element_name_l2'].trim().replace(/['\[\]]/g, '') === l2Element));
+ 
+        const maxLength = Math.max(nonMatchingL1.length, nonMatchingL2.length);
+ 
+        for (let index = 0; index < maxLength; index++) {
+          const row = nonMatchingTable.insertRow();
+          row.insertCell(0).textContent = nonMatchingL1[index] || ''; // Use empty string if element does not exist
+          row.insertCell(1).textContent = nonMatchingL2[index] || ''; // Use empty string if element does not exist
+        }
+ 
+        displayNonMatchingTableDiv.appendChild(nonMatchingTable);
+      })
+      .catch(error => {
+        console.error('Error:', error);
+      });
+ 
+      console.log('Entered L1:', l1);
+      console.log('Entered L2:', l2);
+      console.log('Entered threshold:', threshold);
+    });
+  </script>
+</body>
+</html>
