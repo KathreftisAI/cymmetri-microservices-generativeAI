@@ -214,7 +214,7 @@ async def process_data(request: Request, data: dict):
                 #sample_dict = {}
                 #sample_dict['primaryEmail'] = sample_record['primaryEmail']
                 print("sample_record: ",sample_record)
-                response_data = sample_record
+                response_data = json_data[0]
                
     except Exception as e:
         print(e)
