@@ -9,10 +9,19 @@ from fuzzywuzzy import fuzz
 from typing import List, Union
 import uvicorn
 from typing import List, Dict, Union
+from database.connection import get_collection
  
 app = FastAPI()
  
-#logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.DEBUG)
+
+def stored_input(tenant: str):
+    #logging.debug(f"Getting collection for tenant: {tenant}")
+    return get_collection(tenant, "openai_input")
+
+def stored_response(tenant: str):
+    #logging.debug(f"Getting collection for storing scores for tenant: {tenant}")
+    return get_collection(tenant, "openai_output")
  
 def convert_string_to_list(input_str: str) -> List[str]:
     # Remove leading and trailing whitespaces, and split by ','
@@ -53,11 +62,6 @@ def compare_lists_with_fuzzy(l1, l2, threshold=50):
         for element_l2 in l2
         if element_l2.strip("'") not in matching_elements_l2
     ]
- 
-    # print("Matching Elements in l1:", matching_elements_l1)
-    # print("Matching Elements in l2:", matching_elements_l2)
-    # print("Non-Matching Elements in l1:", non_matching_elements_l1)
-    # print("Non-Matching Elements in l2:", non_matching_elements_l2)
  
     similar_elements = []
     for element_l1, element_l2 in zip(matching_elements_l1, matching_elements_l2):
@@ -104,6 +108,12 @@ def generate_final_response(similar_elements: List[Dict[str, str]], response_dat
 @app.post('/process_data')
 async def process_data(request: Request, data: dict):
     try:
+        tenant = "generativeAI"
+        input_collection =  stored_input(tenant)
+        output_collection =  stored_response(tenant)
+
+        input_collection.insert_one(data)
+        logging.debug("Input respone saved successfully")
         print("data :",data)
  
         def extract_info(json_data):
@@ -125,10 +135,14 @@ async def process_data(request: Request, data: dict):
  
         appId, body, headers, url, request_method, params = extract_info(data)
        
+
+        final_url = url
  
-        final_url = url + "?domain=kathreftis.ai"
+        if params:
+            final_url += "?" + "&".join(f"{key}={value}" for key,value in params.items())
  
         print("final_url: ",final_url)
+ 
  
         # Fetch JSON data from the specified URL using httpx for asynchronous requests
         async with httpx.AsyncClient() as client:
@@ -155,7 +169,7 @@ async def process_data(request: Request, data: dict):
  
                 # case "PATCH":
                 #     response = client.patch(url=request.data.url, data=body_dict)
- 
+                  
                 # case "DELETE":
                 #     response = client.delete(url=request.data.url)
                
@@ -244,6 +258,12 @@ async def process_data(request: Request, data: dict):
                         result = compare_lists_with_fuzzy(l1_list, l2_list, threshold)
  
                         final_response = generate_final_response(result['similar_elements'], response_data)
+                        final_response_dict = {"final_response": final_response}
+
+                        output_collection.insert_one(final_response_dict)
+                        logging.debug("Final response saved successfully")
+
+
                         #print(f'final response is {final_response}')
                         return JSONResponse(content=final_response)
  

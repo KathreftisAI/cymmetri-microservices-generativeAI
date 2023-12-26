@@ -13,7 +13,7 @@ class Configuration:
         return self.data
 
 if platform.system() == 'Windows':
-    c = Configuration("/Users/apple/Desktop/cymmetri/cymmetri-microservices-rolemining/config.yaml")
+    c = Configuration("/Users/apple/Desktop/cymmetri/cymmetri-microservices-generativeAI/config.yaml")
 else:
     c = Configuration("config.yaml")
 

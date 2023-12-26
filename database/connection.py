@@ -5,7 +5,7 @@ import platform
 
 def load_configuration():
     if platform.system() == 'Windows':
-        c = Configuration("/Users/apple/Desktop/cymmetri/cymmetri-microservices-genrativeAI/config.yaml")
+        c = Configuration("/Users/apple/Desktop/cymmetri/cymmetri-microservices-generativeAI/config.yaml")
     else:
         c = Configuration("config.yaml")
     return c.getConfiguration()
