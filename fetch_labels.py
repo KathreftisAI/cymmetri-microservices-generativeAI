@@ -103,7 +103,124 @@ def generate_final_response(similar_elements: List[Dict[str, str]], response_dat
  
     return final_response
  
+
+@app.post('/generativeaisrvc/send_and_get_sample')
+async def process_data(request: Request, data: dict):
+    response_data = {}
+    try:
+        tenant = "generativeAI"
+        input_collection =  stored_input(tenant)
+        output_collection =  stored_response(tenant)
+
+        #input_collection.insert_one(data)
+        input_collection.update_one(
+            {"appId": data["appId"]},
+            {"$set": data},
+            upsert=True
+        )
+        
+        logging.debug("Input respone saved successfully")
+        print("data :",data)
  
+        def extract_info(json_data):
+            appId = json_data.get("appId")
+            body = ""
+            params = None
+            headers = None
+            try:
+                body = json.loads(json_data["schema"]["nodes"][0]["data"]["body"])
+            except:
+                print("body not found")
+
+
+            try:
+                headers = {header["key"]: header["value"] for header in json_data["schema"]["nodes"][0]["data"]["headers"]}
+            except:
+                print("headers not found")
+
+            url = json_data["schema"]["nodes"][0]["data"]["url"]
+            request_method = json_data["schema"]["nodes"][0]["data"]["requestMethod"]
+            try:
+                params_list = json_data["schema"]["nodes"][0]["data"]["params"]
+                params = {param["key"]: param["value"] for param in params_list if param["included"]}
+            except:
+                print("params not found")
+
+            print("appId: ",appId)
+            print("body: ",body)
+            print("headers: ",headers)
+            #print("url: ",url)
+            print("request_method: ",request_method)
+            print("params: ",params)
+            return appId, body, headers, url, request_method, params
+ 
+        appId, body, headers, url, request_method, params = extract_info(data)
+       
+
+        final_url = url
+ 
+        if params:
+            final_url += "?" + "&".join(f"{key}={value}" for key,value in params.items())
+ 
+        print("final_url: ",final_url)
+ 
+ 
+        # Fetch JSON data from the specified URL using httpx for asynchronous requests
+        async with httpx.AsyncClient() as client:
+            #url_from_request = data["url"]
+            #print("url_from_request: ",url)
+            requestMethod_from_request = request_method
+            #print("requestMethod_from_request: ",requestMethod_from_request)
+ 
+            match requestMethod_from_request:
+                case "GET":
+                    # Call method for GET request
+                    response = await client.get(url=final_url, headers=headers)
+                    print("response: ",response)
+               
+                # case "POST":
+                #     # Call method for POST request
+                #     ## if body is empty, skip the data field
+                #     ## if body is not empty, use as below
+                #     response = client.post(url=url_from_request)
+                #     print("response: ",response)
+                # case "PUT":
+                #     # Handle other request methods
+                #     response = client.put(url=request.data.url, data=body_dict)
+ 
+                # case "PATCH":
+                #     response = client.patch(url=request.data.url, data=body_dict)
+                  
+                # case "DELETE":
+                #     response = client.delete(url=request.data.url)
+               
+ 
+        if response.status_code >= 200 or response.status_code <= 204:
+            # Assuming the response contains JSON data, you can parse it
+            json_data = response.json()
+            print("json_data: ",json_data)
+            '''
+            users_array = json_data['users'][0]
+            users_json = json.dumps(users_array, indent=4)
+            print(users_json)
+            print("shreyas")
+            '''
+            json_data = json_data['users']
+           
+            #print("json_data: ",json_data)
+ 
+            if isinstance(json_data, list) and len(json_data) > 0:
+                sample_record = json.dumps(json_data[0])
+                #sample_dict = {}
+                #sample_dict['primaryEmail'] = sample_record['primaryEmail']
+                print("sample_record: ",sample_record)
+                response_data = sample_record
+               
+    except Exception as e:
+        print(e)
+
+    return response_data
+
  
 @app.post('/generativeaisrvc/process_data')
 async def process_data(request: Request, data: dict):
@@ -118,7 +235,7 @@ async def process_data(request: Request, data: dict):
             {"$set": data},
             upsert=True
         )
-        
+
         logging.debug("Input respone saved successfully")
         print("data :",data)
  
