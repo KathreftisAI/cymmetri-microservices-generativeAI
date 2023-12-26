@@ -399,7 +399,7 @@ async def process_data(request: Request, data: dict):
                         final_response = generate_final_response(result['similar_elements'], response_data)
                         final_response_dict = {"final_response": final_response}
 
-                        output_collection.insert_one(final_response_dict)
+                        #output_collection.insert_one(final_response_dict)
                         final_response_dict['appId'] = appId
                         output_collection.update_one(
                             {"appId": appId},
