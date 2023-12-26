@@ -112,7 +112,13 @@ async def process_data(request: Request, data: dict):
         input_collection =  stored_input(tenant)
         output_collection =  stored_response(tenant)
 
-        input_collection.insert_one(data)
+        #input_collection.insert_one(data)
+        input_collection.update_one(
+            {"appId": data["appId"]},
+            {"$set": data},
+            upsert=True
+        )
+        
         logging.debug("Input respone saved successfully")
         print("data :",data)
  
