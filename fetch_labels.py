@@ -341,7 +341,7 @@ async def process_data(request: Request, data: dict):
                 }
  
                 openai_payload = {
-                    "prompt": "Give me list of fields as jsonPath and labels and datatype and value in this json sample in json format only "+sample_record,
+                    "prompt": "Give me list of fields as jsonPath and labels and datatype and value in this json sample in json format only,keep all fields in lowercase only"+sample_record,
                     "max_tokens": 8000,
                     "temperature": 0.2,
                     "frequency_penalty": 0,
@@ -420,4 +420,4 @@ async def process_data(request: Request, data: dict):
  
  
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=5000)
+    uvicorn.run(app, host="127.0.0.1", port=5001)
