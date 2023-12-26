@@ -1,1 +1,0 @@
-# cymmetri-microservices-genrativeAI
