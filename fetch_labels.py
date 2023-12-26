@@ -219,7 +219,8 @@ async def process_data(request: Request, data: dict):
     except Exception as e:
         print(e)
 
-    return response_data
+    #return response_data
+    return JSONResponse(content=response_data, media_type="application/json")
 
  
 @app.post('/generativeaisrvc/process_data')
