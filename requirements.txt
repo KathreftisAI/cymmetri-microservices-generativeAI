@@ -25,3 +25,4 @@ tzdata==2023.3
 python-multipart
 PyYAML==6.0
 httpx
+python-Levenshtein

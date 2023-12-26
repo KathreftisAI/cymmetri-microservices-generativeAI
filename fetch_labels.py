@@ -46,7 +46,7 @@ def compare_lists_with_fuzzy(l1, l2, threshold=50):
             similarity = fuzz.ratio(
                 el1, el2
             )
-            print(f'l1 {el1} ;;; l2 {el2} ;; similarity {similarity}')  # Convert to lowercase for case-insensitive comparison
+            #print(f'l1 {el1} ;;; l2 {el2} ;; similarity {similarity}')  # Convert to lowercase for case-insensitive comparison
             if similarity > max_similarity and similarity >= threshold:
                 max_similarity = similarity
                 matching_element_l2 = element_l2
