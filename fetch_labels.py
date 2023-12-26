@@ -105,7 +105,7 @@ def generate_final_response(similar_elements: List[Dict[str, str]], response_dat
  
  
  
-@app.post('/process_data')
+@app.post('/generativeaisrvc/process_data')
 async def process_data(request: Request, data: dict):
     try:
         tenant = "generativeAI"
