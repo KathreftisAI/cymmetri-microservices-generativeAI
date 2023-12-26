@@ -16,7 +16,7 @@ RUN pip install flask
 EXPOSE 5000
 
 # Define environment variable
-ENV NAME World
+ENV CONFIG_FILE_PATH=/app/config.yaml
 
 # Run your FastAPI application
 CMD ["uvicorn", "fetch_labels:app", "--host", "0.0.0.0", "--port", "5000"]
