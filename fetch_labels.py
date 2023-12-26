@@ -118,13 +118,28 @@ async def process_data(request: Request, data: dict):
  
         def extract_info(json_data):
             appId = json_data.get("appId")
-            body = json.loads(json_data["schema"]["nodes"][0]["data"]["body"])
-            headers = {header["key"]: header["value"] for header in json_data["schema"]["nodes"][0]["data"]["headers"]}
+            body = ""
+            params = None
+            headers = None
+            try:
+                body = json.loads(json_data["schema"]["nodes"][0]["data"]["body"])
+            except:
+                print("body not found")
+
+
+            try:
+                headers = {header["key"]: header["value"] for header in json_data["schema"]["nodes"][0]["data"]["headers"]}
+            except:
+                print("headers not found")
+
             url = json_data["schema"]["nodes"][0]["data"]["url"]
             request_method = json_data["schema"]["nodes"][0]["data"]["requestMethod"]
-            params_list = json_data["schema"]["nodes"][0]["data"]["params"]
-            params = {param["key"]: param["value"] for param in params_list if param["included"]}
-            
+            try:
+                params_list = json_data["schema"]["nodes"][0]["data"]["params"]
+                params = {param["key"]: param["value"] for param in params_list if param["included"]}
+            except:
+                print("params not found")
+
             print("appId: ",appId)
             print("body: ",body)
             print("headers: ",headers)
