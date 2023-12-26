@@ -1,5 +1,6 @@
 import yaml
 import platform
+import os
 
 class Configuration:
     def __init__(self, filepath):
@@ -12,12 +13,15 @@ class Configuration:
     def getConfiguration(self):
         return self.data
 
-if platform.system() == 'Windows':
+if platform.system() != 'Windows':
     c = Configuration("/Users/apple/Desktop/cymmetri/cymmetri-microservices-generativeAI/config.yaml")
 else:
-    c = Configuration("config.yaml")
+    #c = Configuration("config.yaml")
+    c = Configuration(os.environ.get("/Users/apple/Desktop/cymmetri/cymmetri-microservices-generativeAI/config.yaml", "config.yaml"))
 
 ConfObject = c.getConfiguration()
+
+
 
 def getConfigObject():
     return ConfObject
