@@ -385,7 +385,7 @@ async def process_data(request: Request, data: dict):
                         else:
                             l1_list = l1
  
-                        l2 = [' Id', 'Displayname', 'Firstname', 'Lastname', 'Country', 'Mobile', 'Email', 'Status', 'Created', 'Updated', 'Created By', 'Updated By', 'Assignedgroups', 'Provisionedapps', 'Attributes', 'Rbacroles', 'Version', ' Class']
+                        l2 = ['Id', 'Displayname', 'Firstname', 'Lastname', 'Country', 'Mobile', 'Email', 'Status', 'Created', 'Updated', 'Created By', 'Updated By', 'Assignedgroups', 'Provisionedapps', 'Attributes', 'Rbacroles', 'Version', ' Class']
  
                         if isinstance(l2, str):
                             l2_list = convert_string_to_list(l2)
@@ -400,6 +400,14 @@ async def process_data(request: Request, data: dict):
                         final_response_dict = {"final_response": final_response}
 
                         output_collection.insert_one(final_response_dict)
+                        final_response_dict['appId'] = appId
+                        output_collection.update_one(
+                            {"appId": appId},
+                            {"$set": final_response_dict},
+                            upsert=True
+                        )
+
+
                         logging.debug("Final response saved successfully")
 
 
