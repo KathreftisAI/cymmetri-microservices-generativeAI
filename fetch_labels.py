@@ -323,7 +323,7 @@ async def process_data(request: Request, data: dict):
             print(users_json)
             print("shreyas")
             '''
-            json_data = json_data['users']
+            #json_data = json_data['users']
            
             #print("json_data: ",json_data)
  
@@ -428,4 +428,4 @@ async def process_data(request: Request, data: dict):
  
  
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=5001)
+    uvicorn.run(app, host="127.0.0.1", port=5000)
