@@ -212,118 +212,64 @@ def generate_final_response(similar_elements: List[Dict[str, str]], response_dat
 
 #----------------------api for policy mapping-----------------------------
 @app.post('/generativeaisrvc/get_policy_mapped')
-async def get_mapped(request: Request, data: dict):
+async def get_mapped(data: dict):
     logging.debug(f"API call for auto policy mapping with the application")
     try:
         tenant = "generativeAI"
         input_collection =  stored_input(tenant)
         output_collection =  stored_response(tenant)
 
-        #input_collection.insert_one(data)
-        input_collection.update_one(
-            {"appId": data["appId"]},
-            {"$set": data},
-            upsert=True
-        )
+        # Store the received response directly into the input collection
+        input_collection.insert_one(data)
         
         logging.debug("Input respone saved successfully")
         print("data :",data)
  
-        def extract_info(json_data):
-            appId = json_data.get("appId")
-            body = ""
-            params = None
-            headers = None
-            try:
-                body = json.loads(json_data["schema"]["nodes"][0]["data"]["body"])
-            except:
-                print("body not found")
-            try:
-                headers = {header["key"]: header["value"] for header in json_data["schema"]["nodes"][0]["data"]["headers"]}
-            except:
-                print("headers not found")
+        
+        # Assuming the response contains JSON data, you can parse it
+        json_data = data
+        json_data_ = extract_user_data(json_data)
+        print("json_data: ",json_data_)
 
-            url = json_data["schema"]["nodes"][0]["data"]["url"]
-            request_method = json_data["schema"]["nodes"][0]["data"]["requestMethod"]
-            try:
-                params_list = json_data["schema"]["nodes"][0]["data"]["params"]
-                params = {param["key"]: param["value"] for param in params_list if param["included"]}
-            except:
-                print("params not found")
+        response_data = get_distinct_keys_and_datatypes(json_data_)
+        #response_data=list(response_data.values())
 
-            print("appId: ",appId)
-            print("body: ",body)
-            print("headers: ",headers)
-            #print("url: ",url)
-            print("request_method: ",request_method)
-            print("params: ",params)
-            return appId, body, headers, url, request_method, params
- 
-        appId, body, headers, url, request_method, params = extract_info(data)
-       
+        l1 = [item['label'] for item in response_data]
 
-        final_url = url
- 
-        if params:
-            final_url += "?" + "&".join(f"{key}={value}" for key,value in params.items())
- 
-        print("final_url: ",final_url)
- 
- 
-        # Fetch JSON data from the specified URL using httpx for asynchronous requests
-        async with httpx.AsyncClient() as client:
-            requestMethod_from_request = request_method
-            
-            match requestMethod_from_request:
-                case "GET":
-                    # Call method for GET request
-                    response = await client.get(url=final_url, headers=headers)
-
-        if response.status_code >= 200 or response.status_code <= 204:
-            # Assuming the response contains JSON data, you can parse it
-            json_data = response.json()
-            json_data_ = extract_user_data(json_data)
-            print("json_data: ",json_data_)
-
-            response_data = get_distinct_keys_and_datatypes(json_data_)
-            #response_data=list(response_data.values())
-
-            l1 = [item['label'] for item in response_data]
- 
-            if isinstance(l1, str):
-                l1_list = set(convert_string_to_list(l1))
-                print("list1: ",l1_list)
-            else:
-                l1_list = set(l1)
-                print("list1: ",l1_list)
-
-            l2 = ['Id', 'Displayname', 'Firstname', 'Lastname', 'Country', 'Mobile', 'Email', 'Status', 'Created', 'Updated', 'Created By', 'Updated By', 'Assignedgroups', 'Provisionedapps', 'Attributes', 'Rbacroles', 'Version', ' Class']
-
-            if isinstance(l2, str):
-                l2_list = convert_string_to_list(l2)
-            else:
-                l2_list = l2
-
-            threshold = 60
-
-            result = compare_lists_with_fuzzy(l1_list, l2_list, threshold)
-
-            final_response = generate_final_response(result['similar_elements'], response_data)
-            final_response_dict = {"final_response": final_response}
-
-            final_response_dict['appId'] = appId
-            output_collection.update_one(
-                {"appId": appId},
-                {"$set": final_response_dict},
-                upsert=True
-            )
-
-            logging.debug("Final response saved successfully")
-
-            return JSONResponse(content=final_response)
-
+        if isinstance(l1, str):
+            l1_list = set(convert_string_to_list(l1))
+            print("list1: ",l1_list)
         else:
-            raise HTTPException(status_code=response.status_code, detail=f"API call to fetch data failed with status code {response.status_code}")
+            l1_list = set(l1)
+            print("list1: ",l1_list)
+
+        l2 = ['Id', 'Displayname', 'Firstname', 'Lastname', 'Country', 'Mobile', 'Email', 'Status', 'Created', 'Updated', 'Created By', 'Updated By', 'Assignedgroups', 'Provisionedapps', 'Attributes', 'Rbacroles', 'Version', ' Class']
+
+        if isinstance(l2, str):
+            l2_list = convert_string_to_list(l2)
+        else:
+            l2_list = l2
+
+        threshold = 60
+
+        result = compare_lists_with_fuzzy(l1_list, l2_list, threshold)
+
+        final_response = generate_final_response(result['similar_elements'], response_data)
+        final_response_dict = {"final_response": final_response}
+
+        # Assuming 'appId' is present in the received response
+        appId = data.get("appId")
+        final_response_dict['appId'] = appId
+
+        output_collection.update_one(
+            {"appId": appId},
+            {"$set": final_response_dict},
+            upsert=True
+        )
+
+        logging.debug("Final response saved successfully")
+
+        return JSONResponse(content=final_response)
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
