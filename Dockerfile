@@ -12,7 +12,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN pip install flask
 
 # Make port 5000 available to the world outside this container
-EXPOSE 5000
+EXPOSE 8000
 
 # Define environment variable
 ENV CONFIG_FILE_PATH=/app/config.yaml
@@ -21,4 +21,4 @@ ENV CONFIG_FILE_PATH=/app/config.yaml
 COPY . /app
 
 # Run your FastAPI application
-CMD ["uvicorn", "dev:app", "--host", "0.0.0.0", "--port", "5000"]
+CMD ["uvicorn", "dev:app", "--host", "0.0.0.0", "--port", "8000"]
