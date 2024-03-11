@@ -189,6 +189,7 @@ def generate_final_response(similar_elements: List[Dict[str, str]], response_dat
             l2_datatype = l2_datatypes.get(element['element_name_l2'], None)
             final_response.append({
                 'jsonPath': matched_data['jsonpath'],
+                'attributeName': element['element_name_l1'],
                 'l1_datatype': matched_data['datatype'],
                 'l2_matched': element['element_name_l2'],
                 'l2_datatype': l2_datatype,
@@ -204,6 +205,7 @@ def generate_final_response(similar_elements: List[Dict[str, str]], response_dat
         if data['label'] not in processed_labels:
             final_response.append({
                 'jsonPath': data['jsonpath'],
+                'attributeName': data['label'],
                 'l1_datatype': data['datatype'],
                 'l2_matched': '',  # No match from l2
                 'l2_datatype': '',
@@ -246,41 +248,36 @@ async def get_mapped(data: dict):
             l1_list = set(l1)
             print("list1: ",l1_list)
 
-        #l2 = ['Id', 'Displayname', 'Firstname', 'Lastname', 'department', 'designation', 'appUpdatedDate' 'country', 'city' 'mobile', 'Email', 'Status', 'Created', 'Updated', 'Created By', 'Updated By', 'Assignedgroups', 'Provisionedapps', 'Attributes', 'Rbacroles', 'Version', ' Class']
 
-        l2 = ['Id','department', 'employeeId', 'appUpdatedDate', 'displayname', 'mobile', 'country', 'city', 'email', 'end_date', 'firstName', 'login', 'lastName', 'userType', 'dateOfdBirth', 'endDate', 'startDate', 'password', 'status', 'profilePicture', 'appUserId', 'landline', 'Updated', 'Created By', 'Updated By', 'Assignedgroups', 'Provisionedapps', 'Attributes', 'Rbacroles', 'Version', ' Class']
+        l2 = ['Id','department', 'employeeId', 'designation', 'appUpdatedDate', 'displayName', 'mobile', 'country', 'city', 'email', 'end_date', 'firstName', 'login', 'lastName', 'userType', 'dateOfBirth', 'endDate', 'startDate', 'password', 'status', 'profilePicture', 'appUserId', 'landline']
 
         l2_datatypes = {
                         'Id': 'INTEGER',
                         'department': 'STRING',
                         'employeeId': 'STRING',
+                        'designation': 'STRING',
                         'appUpdatedDate': 'DATETIME',
-                        'displayname': 'STRING',    
-                        'firstName': 'STRING',
-                        'lastName': 'STRING',
+                        'displayName': 'STRING',    
+                        'mobile': 'STRING',
                         'country': 'STRING',
                         'city': 'STRING',
-                        'mobile': 'STRING',
                         'email': 'STRING',
+                        'end_date': 'DATE',
+                        'firstName': 'STRING',
+                        'login': 'INTEGER',
+                        'lastName': 'STRING',
+                        'userType': 'STRING',
                         'end_date': 'DATE',
                         'login': 'INTEGER',
                         'userType': 'STRING',
-                        'dateOfdBirth': 'DATE',
+                        'dateOfBirth': 'DATE',
                         'endDate': 'DATE',
                         'startDate': 'DATE',
+                        'password': 'password',
                         'status': 'STRING',
-                        'landline': 'STRING',
+                        'profilePicture': 'profilePicture',
                         'appUserId': 'STRING',
-                        'Created': 'DATETIME',
-                        'Updated': 'DATETIME',
-                        'Created By': 'STRING',
-                        'Updated By': 'STRING',
-                        'Assignedgroups': 'ARRAY',
-                        'Provisionedapps': 'ARRAY',
-                        'Attributes': 'CUSTOM',
-                        'Rbacroles': 'ARRAY',
-                        'Version': 'STRING',
-                        'Class': 'STRING'
+                        'landline': 'STRING'
                     }
         
         if isinstance(l2, str):
