@@ -18,7 +18,7 @@ EXPOSE 8000
 ENV CONFIG_FILE_PATH=/app/config.yaml
 
 # Copy the contents of the local directory into the container at /app
-COPY . /app
+COPY . /app 
 
 # Run your FastAPI application
-CMD ["uvicorn", "dev:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "dev:app", "--host", "0.0.0.0", "--port", "5000"]
