@@ -173,7 +173,7 @@ def compare_lists_with_fuzzy(l1, l2, threshold=50):
     return result
 
 #----------------------generates final response---------------
-def generate_final_response(similar_elements: List[Dict[str, str]], response_data: List[Dict[str, str]]) -> List[Dict[str, Union[str, int]]]:
+def generate_final_response(similar_elements: List[Dict[str, str]], response_data: List[Dict[str, str]], l2_datatypes: Dict[str, str]) -> List[Dict[str, Union[str, int]]]:
     logging.debug(f"Beautifying the response for saving into the collection")
     final_response = []
     processed_labels = set()
@@ -186,10 +186,12 @@ def generate_final_response(similar_elements: List[Dict[str, str]], response_dat
         matched_data = next((data for data in response_data if data['label'] == element['element_name_l1']), None)
  
         if matched_data:
+            l2_datatype = l2_datatypes.get(element['element_name_l2'], None)
             final_response.append({
                 'jsonPath': matched_data['jsonpath'],
+                'l1_datatype': matched_data['datatype'],
                 'l2_matched': element['element_name_l2'],
-                'datatype': matched_data['datatype'],
+                'l2_datatype': l2_datatype,
                 'value': matched_data['value']
             })
             processed_labels.add(element['element_name_l1'])  # Track processed labels
@@ -202,8 +204,9 @@ def generate_final_response(similar_elements: List[Dict[str, str]], response_dat
         if data['label'] not in processed_labels:
             final_response.append({
                 'jsonPath': data['jsonpath'],
+                'l1_datatype': data['datatype'],
                 'l2_matched': '',  # No match from l2
-                'datatype': data['datatype'],
+                'l2_datatype': '',
                 'value': data['value']  # Use value from response_data
             })
  
@@ -243,8 +246,43 @@ async def get_mapped(data: dict):
             l1_list = set(l1)
             print("list1: ",l1_list)
 
-        l2 = ['Id', 'Displayname', 'Firstname', 'Lastname', 'Country', 'Mobile', 'Email', 'Status', 'Created', 'Updated', 'Created By', 'Updated By', 'Assignedgroups', 'Provisionedapps', 'Attributes', 'Rbacroles', 'Version', ' Class']
+        #l2 = ['Id', 'Displayname', 'Firstname', 'Lastname', 'department', 'designation', 'appUpdatedDate' 'country', 'city' 'mobile', 'Email', 'Status', 'Created', 'Updated', 'Created By', 'Updated By', 'Assignedgroups', 'Provisionedapps', 'Attributes', 'Rbacroles', 'Version', ' Class']
 
+        l2 = ['Id','department', 'employeeId', 'appUpdatedDate', 'displayname', 'mobile', 'country', 'city', 'email', 'end_date', 'firstName', 'login', 'lastName', 'userType', 'dateOfdBirth', 'endDate', 'startDate', 'password', 'status', 'profilePicture', 'appUserId', 'landline', 'Updated', 'Created By', 'Updated By', 'Assignedgroups', 'Provisionedapps', 'Attributes', 'Rbacroles', 'Version', ' Class']
+
+        l2_datatypes = {
+                        'Id': 'INTEGER',
+                        'department': 'STRING',
+                        'employeeId': 'STRING',
+                        'appUpdatedDate': 'DATETIME',
+                        'displayname': 'STRING',    
+                        'firstName': 'STRING',
+                        'lastName': 'STRING',
+                        'country': 'STRING',
+                        'city': 'STRING',
+                        'mobile': 'STRING',
+                        'email': 'STRING',
+                        'end_date': 'DATE',
+                        'login': 'INTEGER',
+                        'userType': 'STRING',
+                        'dateOfdBirth': 'DATE',
+                        'endDate': 'DATE',
+                        'startDate': 'DATE',
+                        'status': 'STRING',
+                        'landline': 'STRING',
+                        'appUserId': 'STRING',
+                        'Created': 'DATETIME',
+                        'Updated': 'DATETIME',
+                        'Created By': 'STRING',
+                        'Updated By': 'STRING',
+                        'Assignedgroups': 'ARRAY',
+                        'Provisionedapps': 'ARRAY',
+                        'Attributes': 'CUSTOM',
+                        'Rbacroles': 'ARRAY',
+                        'Version': 'STRING',
+                        'Class': 'STRING'
+                    }
+        
         if isinstance(l2, str):
             l2_list = convert_string_to_list(l2)
         else:
@@ -254,7 +292,7 @@ async def get_mapped(data: dict):
 
         result = compare_lists_with_fuzzy(l1_list, l2_list, threshold)
 
-        final_response = generate_final_response(result['similar_elements'], response_data)
+        final_response = generate_final_response(result['similar_elements'], response_data, l2_datatypes)
         final_response_dict = {"final_response": final_response}
 
         # Assuming 'appId' is present in the received response
