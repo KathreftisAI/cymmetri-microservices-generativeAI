@@ -302,9 +302,44 @@ async def get_mapped(data: dict):
             upsert=True
         )
 
+        subset_response = output_collection.aggregate([
+            {"$unwind": "$final_response" },
+            { "$match": { "final_response.value": { "$ne": None } } },
+            { "$group": {
+                "_id": "$final_response.attributeName",
+                "data": { "$first": "$final_response" }
+            }},
+            {"$project": {
+                "_id": 0,
+                "jsonPath": "$data.jsonPath",
+                "attributeName": "$data.attributeName",
+                "l1_datatype": "$data.l1_datatype",
+                "l2_matched": "$data.l2_matched",
+                "l2_datatype": "$data.l2_datatype",
+                "value": "$data.value"
+            }}
+        ])
+
+        subset_response_data = list(subset_response)
+
+        # Serialize each document into a JSON serializable format
+        json_serializable_response = []
+        for doc in subset_response_data:
+            json_serializable_doc = {
+                "jsonPath": doc["jsonPath"],
+                "attributeName": doc["attributeName"],
+                "l1_datatype": doc["l1_datatype"],
+                "l2_matched": doc["l2_matched"],
+                "l2_datatype": doc["l2_datatype"],
+                "value": doc["value"]
+            }
+            json_serializable_response.append(json_serializable_doc)
+
+
         logging.debug("Final response saved successfully")
 
-        return JSONResponse(content=final_response)
+
+        return JSONResponse(content=json_serializable_response)
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
