@@ -262,7 +262,8 @@ def map_nested_fields_to_policy(nested_field: Dict[str, Any], policy_mapping: Li
 ## Read header as tenant
 #----------------------api for policy mapping-----------------------------
 @app.post('/generativeaisrvc/get_policy_mapped')
-async def get_mapped(data: dict, tenant: str = Header(...)):
+async def get_mapped(data: dict, tenant: str = Header(None)):
+    print("Headers:", tenant)
     logging.debug(f"API call for auto policy mapping with the application")
     try:
         
@@ -270,7 +271,7 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
         output_collection =  stored_response(tenant)
 
         # Store the received response directly into the input collection
-        input_collection.insert_one(data)
+        #input_collection.insert_one(data)
         
         logging.debug("Input respone saved successfully")
         print("data :",data)
@@ -283,7 +284,7 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
         
         json_data = data.get('payload')
 
-
+        print("json data is {}", json_data)
         #End of changes by Abhishek
 
         json_data_ = extract_user_data(json_data)
