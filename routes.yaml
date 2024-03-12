@@ -5,14 +5,33 @@ meta:
   project: unotech
 spec:
   modify:
-    headers: []
+    headers:
+    - key: userid
+      op: set
+      value: auth.userId
+    - key: tenant
+      op: set
+      value: auth.tenantId
+    - key: roles
+      op: set
+      value: auth.roles
+    - key: principal
+      op: set
+      value: auth.sub
     outputFormat: yaml
     requestTemplate: ""
     responseTemplate: ""
     template: go
   project: unotech
   rule:
-    rule: allow
+    rule: and
+    clauses:
+      - rule: authenticated
+      - rule: match
+        eval: in
+        type: string
+        f2: args.auth.roles
+        f1: USER
   source:
     hosts:
     - '*'
@@ -37,14 +56,33 @@ meta:
   project: unotech
 spec:
   modify:
-    headers: []
+    headers:
+    - key: userid
+      op: set
+      value: auth.userId
+    - key: tenant
+      op: set
+      value: auth.tenantId
+    - key: roles
+      op: set
+      value: auth.roles
+    - key: principal
+      op: set
+      value: auth.sub
     outputFormat: yaml
     requestTemplate: ""
     responseTemplate: ""
     template: go
   project: unotech
   rule:
-    rule: allow
+    rule: and
+    clauses:
+      - rule: authenticated
+      - rule: match
+        eval: in
+        type: string
+        f2: args.auth.roles
+        f1: USER
   source:
     hosts:
     - '*'
