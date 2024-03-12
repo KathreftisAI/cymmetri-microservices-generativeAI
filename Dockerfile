@@ -21,4 +21,4 @@ ENV CONFIG_FILE_PATH=/app/config.yaml
 COPY . /app 
 
 # Run your FastAPI application
-CMD ["uvicorn", "dev:app", "--host", "0.0.0.0", "--port", "5000"]
+CMD ["uvicorn", "policy_mapping:app", "--host", "0.0.0.0", "--port", "5000"]
