@@ -30,3 +30,36 @@ spec:
     version: ""
     weight: 100
 type: ingress-route
+---
+api: /v1/config/projects/{project}/routing/ingress/{id}
+meta:
+  id: generativeaiservice
+  project: unotech
+spec:
+  modify:
+    headers: []
+    outputFormat: yaml
+    requestTemplate: ""
+    responseTemplate: ""
+    template: go
+  project: unotech
+  rule:
+    rule: allow
+  source:
+    hosts:
+    - '*'
+    methods:
+    - '*'
+    port: 0
+    rewrite: /generativeaisrvc/map_fields_to_policy
+    type: prefix
+    url: /generativeaisrvc/map_fields_to_policy
+  targets:
+  - host: generativeaiservice.unotech.svc.cluster.local
+    port: 8080
+    scheme: http
+    type: ""
+    version: ""
+    weight: 100
+type: ingress-route
+---
