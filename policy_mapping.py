@@ -27,17 +27,41 @@ logging.basicConfig(
 )
 
 def stored_input(tenant: str):
-    #logging.debug(f"Getting collection for tenant: {tenant}")
     return get_collection(tenant, "schema_maker_input")
 
 def stored_response(tenant: str):
-    #logging.debug(f"Getting collection for storing scores for tenant: {tenant}")
     return get_collection(tenant, "schema_maker_output")
+
+def stored_subset_response(tenant: str):
+    return get_collection(tenant, "schema_maker_subset_output")
 
 def convert_string_to_list(input_str: str) -> List[str]:
     # Remove leading and trailing whitespaces, and split by ','
     return [element.strip() for element in input_str.strip('[]').split(',')]
 
+def stored_score(tenant: str, appId: str):
+    score_collection = get_collection(tenant, "schema_maker_score")
+
+    # Check if index exists
+    #index_exists = appId in score_collection.index_information()
+    
+    # If index doesn't exist, create it
+    # if not index_exists:
+    #     score_collection.create_index("appId", unique=True)
+    confidence_levels = {
+        "HIGH": [70, 100],
+        "LOW": [0, 30],
+        "MEDIUM": [31, 69]
+    }
+    # Update or insert a single document for the given appId with confidence levels as fields
+    score_collection.update_one(
+        {"appId": appId},
+        {"$set": {level: values for level, values in confidence_levels.items()}},
+        upsert=True
+    )
+    logging.debug("score collection updated/created successfully")
+    
+    return score_collection
 
 #-----------------------------extracting the user object from response-----------------
 
@@ -149,9 +173,7 @@ def compare_lists_with_fuzzy(l1, l2, threshold=50):
         for element_l2 in l2:
             el1 = str(element_l1).lower()
             el2 = str(element_l2).lower()
-            similarity = fuzz.ratio(
-                el1, el2
-            )
+            similarity = fuzz.ratio(el1, el2)
             if similarity > max_similarity and similarity >= threshold:
                 max_similarity = similarity
                 matching_element_l2 = element_l2
@@ -170,52 +192,92 @@ def compare_lists_with_fuzzy(l1, l2, threshold=50):
  
     similar_elements = []
     for element_l1, element_l2 in zip(matching_elements_l1, matching_elements_l2):
-        similar_elements.append({"element_name_l1": element_l1, "element_name_l2": element_l2})
+        similarity_percentage = fuzz.ratio(element_l1.lower(), element_l2.lower())
+        similar_elements.append({
+            "element_name_l1": element_l1,
+            "element_name_l2": element_l2,
+            "similarity_percentage": similarity_percentage
+        })
  
     result = {"similar_elements": similar_elements}
     return result
 
+#----------------------to get the confidence level based on schema_maker_score
+def get_confidence_level(similarity_score: float, score_collection) -> str:
+
+    # Query the collection to find the confidence level based on the similarity score
+    score_doc = score_collection.find_one({
+        "$or": [
+            {"HIGH": {"$elemMatch": {"$gte": similarity_score}}},
+            {"MEDIUM": {"$elemMatch": {"$gte": similarity_score}}},
+            {"LOW": {"$elemMatch": {"$gte": similarity_score}}}
+        ]
+    })
+
+    # Extract the confidence level based on the matched range
+    if score_doc:
+        if similarity_score >= score_doc['HIGH'][0]:
+            return "HIGH"
+        elif similarity_score >= score_doc['MEDIUM'][0]:
+            return "MEDIUM"
+        elif similarity_score >= score_doc['LOW'][0]:
+            return "LOW"
+        else:
+            return "Unknown"  # Should not happen if the schema is properly defined
+    else:
+        return "Unknown"  # No matching range found, return Unknown
+
+
 #----------------------generates final response---------------
-def generate_final_response(similar_elements: List[Dict[str, str]], response_data: List[Dict[str, str]], l2_datatypes: Dict[str, str]) -> List[Dict[str, Union[str, int]]]:
+def generate_final_response(similar_elements: List[Dict[str, Union[str, int]]], response_data: List[Dict[str, str]], l2_datatypes: Dict[str, str], score_collection) -> List[Dict[str, Union[str, int, float]]]:
     logging.debug(f"Beautifying the response for saving into the collection")
     final_response = []
     processed_labels = set()
- 
+    
     # Create a dictionary for easy lookup of response_data based on labels
     response_lookup = {data['label']: data for data in response_data}
- 
     for element in similar_elements:
         # Find matching element in response_data based on label
         matched_data = next((data for data in response_data if data['label'] == element['element_name_l1']), None)
- 
+    
         if matched_data:
             l2_datatype = l2_datatypes.get(element['element_name_l2'], None)
+            # Query the schema_maker_score collection to get the confidence level
+            confidence = get_confidence_level(element['similarity_percentage'],score_collection)
             final_response.append({
                 'jsonPath': matched_data['jsonpath'],
                 'attributeName': element['element_name_l1'],
                 'l1_datatype': matched_data['datatype'],
                 'l2_matched': element['element_name_l2'],
                 'l2_datatype': l2_datatype,
-                'value': matched_data['value']
+                'value': matched_data['value'],
+                'similarity_percentage': element['similarity_percentage'],
+                'confidence': confidence  # Include confidence level
             })
             processed_labels.add(element['element_name_l1'])  # Track processed labels
-
         else:
             print(f"No matched data found for {element['element_name_l1']}")
- 
+
+    
     # Handle unmatched elements from l1
     for data in response_data:
         if data['label'] not in processed_labels:
+            # Query the schema_maker_score collection to get the confidence level
+            confidence = get_confidence_level(0,score_collection)  # Default to 0 for unmatched elements
             final_response.append({
                 'jsonPath': data['jsonpath'],
                 'attributeName': data['label'],
                 'l1_datatype': data['datatype'],
                 'l2_matched': '',  # No match from l2
                 'l2_datatype': '',
-                'value': data['value']  # Use value from response_data
+                'value': data['value'],  # Use value from response_data
+                'similarity_percentage': 0,  # Default to 0 for unmatched elements
+                'confidence': confidence  # Include confidence level
             })
- 
+    
     return final_response
+
+
 
 def map_field_to_policy(field: str, policy_mapping: List[Dict[str, Any]]) -> str:
     matched = False
@@ -269,26 +331,21 @@ async def get_mapped(data: dict, tenant: str = Header(None)):
         
         input_collection =  stored_input(tenant)
         output_collection =  stored_response(tenant)
+        subset_collection = stored_subset_response(tenant)
 
         # Store the received response directly into the input collection
         #input_collection.insert_one(data)
         
-        logging.debug("Input respone saved successfully")
-        print("data :",data)
+        #logging.debug("Input respone saved successfully")
+        #print("data :",data)
  
-        #appId = data['appId']
-               
-        # Assuming the response contains JSON data, you can parse it
-        
-        #Start of changes by Abhishek
-        
         json_data = data.get('payload')
 
-        print("json data is {}", json_data)
+        #print("json data is {}", json_data)
         #End of changes by Abhishek
 
         json_data_ = extract_user_data(json_data)
-        print("json_data: ",json_data_)
+        #print("json_data: ",json_data_)
 
         response_data = get_distinct_keys_and_datatypes(json_data_)
         #response_data=list(response_data.values())
@@ -343,11 +400,14 @@ async def get_mapped(data: dict, tenant: str = Header(None)):
 
         result = compare_lists_with_fuzzy(l1_list, l2_list, threshold)
 
-        final_response = generate_final_response(result['similar_elements'], response_data, l2_datatypes)
+        appId = data.get("appId")
+        
+        score_collection = stored_score(tenant, appId)
+
+        final_response = generate_final_response(result['similar_elements'], response_data, l2_datatypes, score_collection)
         final_response_dict = {"final_response": final_response}
 
         # Assuming 'appId' is present in the received response
-        appId = data.get("appId")
         final_response_dict['appId'] = appId
 
         output_collection.update_one(
@@ -356,12 +416,14 @@ async def get_mapped(data: dict, tenant: str = Header(None)):
             upsert=True
         )
 
+        logging.debug("Final response saved successfully")
+
         subset_response = output_collection.aggregate([
-            {"$unwind": "$final_response" },
-            { "$match": { "final_response.value": { "$ne": None } } },
-            { "$group": {
+            {"$unwind": "$final_response"},
+            {"$match": {"final_response.value": {"$ne": None}, "appId": appId}}, 
+            {"$group": {
                 "_id": "$final_response.attributeName",
-                "data": { "$first": "$final_response" }
+                "data": {"$first": "$final_response"}
             }},
             {"$project": {
                 "_id": 0,
@@ -370,12 +432,14 @@ async def get_mapped(data: dict, tenant: str = Header(None)):
                 "l1_datatype": "$data.l1_datatype",
                 "l2_matched": "$data.l2_matched",
                 "l2_datatype": "$data.l2_datatype",
-                "value": "$data.value"
+                "value": "$data.value",
+                "similarity_percentage": "$data.similarity_percentage",
+                "confidence": "$data.confidence"
             }}
         ])
 
-        subset_response_data = list(subset_response)
 
+        subset_response_data = list(subset_response)
         # Serialize each document into a JSON serializable format
         json_serializable_response = []
         for doc in subset_response_data:
@@ -385,13 +449,20 @@ async def get_mapped(data: dict, tenant: str = Header(None)):
                 "l1_datatype": doc["l1_datatype"],
                 "l2_matched": doc["l2_matched"],
                 "l2_datatype": doc["l2_datatype"],
-                "value": doc["value"]
+                "value": doc["value"],
+                "similarity_percentage": doc["similarity_percentage"],
+                "confidence": doc["confidence"]
             }
             json_serializable_response.append(json_serializable_doc)
 
 
-        logging.debug("Final response saved successfully")
+        for data in subset_response_data:
+            data["appId"] = appId
+            #print("data: ",data)
 
+        subset_collection.insert_many(subset_response_data)
+
+        logging.debug("subset response saved successfully")
 
         return JSONResponse(content=json_serializable_response)
 
