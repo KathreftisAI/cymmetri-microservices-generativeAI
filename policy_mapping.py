@@ -18,6 +18,7 @@ import json
 from typing import Dict, Any, List
 from fuzzywuzzy import process
 import uvicorn
+import uuid
 
 app = FastAPI()
  
@@ -26,18 +27,22 @@ logging.basicConfig(
     format='[%(asctime)s] %(levelname)s in %(filename)s on %(lineno)d: %(message)s',
 )
 
+def ResponseModel(data, message, code=200, error_code=None):
+    return {
+        "data": data,
+        "code": code,
+        "message": message,
+        "error_code": error_code
+    }
+
 def stored_input(tenant: str):
     return get_collection(tenant, "schema_maker_input")
 
 def stored_response(tenant: str):
-    return get_collection(tenant, "schema_maker_output")
+    return get_collection(tenant, "schema_maker_final_output")
 
-def stored_subset_response(tenant: str):
-    return get_collection(tenant, "schema_maker_subset_output")
-
-def convert_string_to_list(input_str: str) -> List[str]:
-    # Remove leading and trailing whitespaces, and split by ','
-    return [element.strip() for element in input_str.strip('[]').split(',')]
+def stored_policy_mapped(tenant: str):
+    return get_collection(tenant, "schema_maker_policyMap")
 
 def stored_score(tenant: str, appId: str):
     score_collection = get_collection(tenant, "schema_maker_score")
@@ -62,6 +67,15 @@ def stored_score(tenant: str, appId: str):
     logging.debug("score collection updated/created successfully")
     
     return score_collection
+
+def convert_string_to_list(input_str: str) -> List[str]:
+    # Remove leading and trailing whitespaces, and split by ','
+    return [element.strip() for element in input_str.strip('[]').split(',')]
+
+#--------generate requestor_id-----------
+def generate_request_id():
+    id = uuid.uuid1()
+    return id.hex
 
 #-----------------------------extracting the user object from response-----------------
 
@@ -331,7 +345,7 @@ async def get_mapped(data: dict, tenant: str = Header(None)):
         
         input_collection =  stored_input(tenant)
         output_collection =  stored_response(tenant)
-        subset_collection = stored_subset_response(tenant)
+        subset_collection = stored_policy_mapped(tenant)
 
         # Store the received response directly into the input collection
         #input_collection.insert_one(data)
@@ -360,10 +374,9 @@ async def get_mapped(data: dict, tenant: str = Header(None)):
             print("list1: ",l1_list)
 
 
-        l2 = ['Id','department', 'employeeId', 'designation', 'appUpdatedDate', 'displayName', 'mobile', 'country', 'city', 'email', 'end_date', 'firstName', 'login', 'lastName', 'userType', 'dateOfBirth', 'endDate', 'startDate', 'password', 'status', 'profilePicture', 'appUserId', 'landline']
+        l2 = ['department', 'employeeId', 'designation', 'appUpdatedDate', 'displayName', 'mobile', 'country', 'city', 'email', 'end_date', 'firstName', 'login', 'lastName', 'userType', 'dateOfBirth', 'endDate', 'startDate', 'password', 'status', 'profilePicture', 'appUserId', 'landline']
 
         l2_datatypes = {
-                        'Id': 'INTEGER',
                         'department': 'STRING',
                         'employeeId': 'STRING',
                         'designation': 'STRING',
@@ -401,6 +414,9 @@ async def get_mapped(data: dict, tenant: str = Header(None)):
         result = compare_lists_with_fuzzy(l1_list, l2_list, threshold)
 
         appId = data.get("appId")
+
+        requestor_id = generate_request_id()
+
         
         score_collection = stored_score(tenant, appId)
 
@@ -415,6 +431,7 @@ async def get_mapped(data: dict, tenant: str = Header(None)):
             {"$set": final_response_dict},
             upsert=True
         )
+
 
         logging.debug("Final response saved successfully")
 
@@ -456,15 +473,24 @@ async def get_mapped(data: dict, tenant: str = Header(None)):
             json_serializable_response.append(json_serializable_doc)
 
 
-        for data in subset_response_data:
-            data["appId"] = appId
-            #print("data: ",data)
+        aggregated_data = {
+            "appId": appId,
+            "requestor_id": requestor_id,
+            "subset_data": subset_response_data
+        }
 
-        subset_collection.insert_many(subset_response_data)
+        subset_collection.insert_one(aggregated_data)
 
         logging.debug("subset response saved successfully")
 
-        return JSONResponse(content=json_serializable_response)
+        data_response = {
+        "requestor_id": requestor_id,
+        "content": json_serializable_response
+    }
+
+        #return JSONResponse(content=json_serializable_response)
+        return ResponseModel(data=data_response, message="Policy mapping generated successfully")
+
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
