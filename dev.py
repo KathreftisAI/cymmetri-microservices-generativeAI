@@ -1,5 +1,5 @@
 import uvicorn
-from fastapi import FastAPI, Form, Request, HTTPException
+from fastapi import FastAPI, Form, Request, HTTPException, Header
 import httpx
 import json
 import logging
@@ -15,6 +15,9 @@ from datetime import datetime
 from datetime import date
 import datetime
 import json
+from typing import Dict, Any, List
+from fuzzywuzzy import process
+import uvicorn
 
 app = FastAPI()
  
@@ -25,11 +28,11 @@ logging.basicConfig(
 
 def stored_input(tenant: str):
     #logging.debug(f"Getting collection for tenant: {tenant}")
-    return get_collection(tenant, "input")
+    return get_collection(tenant, "schema_maker_input")
 
 def stored_response(tenant: str):
     #logging.debug(f"Getting collection for storing scores for tenant: {tenant}")
-    return get_collection(tenant, "output")
+    return get_collection(tenant, "schema_maker_output")
 
 def convert_string_to_list(input_str: str) -> List[str]:
     # Remove leading and trailing whitespaces, and split by ','
@@ -214,25 +217,76 @@ def generate_final_response(similar_elements: List[Dict[str, str]], response_dat
  
     return final_response
 
+def map_field_to_policy(field: str, policy_mapping: List[Dict[str, Any]]) -> str:
+    matched = False
+    # Perform case-insensitive exact match
+    for map_entry in policy_mapping:
+        external_field = map_entry["external"]
+        internal_field = map_entry["internal"]
+        if external_field.lower() == field.lower():
+            matched = True
+            print(f"Exact match found: '{field}' -> '{external_field}'")
+            return external_field, f"${{{external_field}}}"  # Use placeholder syntax
+    
+    # Perform fuzzy matching if no direct match is found
+    best_match, score = process.extractOne(field.lower(), [map_entry["internal"].lower() for map_entry in policy_mapping])
+    if score >= 70:  # Adjust the threshold as needed
+        for map_entry in policy_mapping:
+            if map_entry["internal"].lower() == best_match:
+                matched = True
+                print(f"Fuzzy match found: '{field}' -> '{map_entry['external']}' (Best match: '{best_match}')")
+                return map_entry['external'], f"${{{map_entry['external']}}}"  # Use placeholder syntax
+    
+    if not matched:
+        print(f"No match found for '{field}'")
+    return field, None  # Return original field if no match is found
 
+
+def map_nested_fields_to_policy(nested_field: Dict[str, Any], policy_mapping: List[Dict[str, Any]]) -> Dict[str, Any]:
+    mapped_nested_data = {}
+    for field, value in nested_field.items():
+        if isinstance(value, dict):
+            # Recursively map nested fields
+            mapped_nested_data[field] = map_nested_fields_to_policy(value, policy_mapping)
+        else:
+            # Map non-nested fields
+            mapped_field, placeholder = map_field_to_policy(field, policy_mapping)
+            if placeholder is not None:
+                mapped_nested_data[field] = placeholder
+            else:
+                mapped_nested_data[field] = value
+    return mapped_nested_data
+
+
+
+## Read header as tenant
 #----------------------api for policy mapping-----------------------------
 @app.post('/generativeaisrvc/get_policy_mapped')
-async def get_mapped(data: dict):
+async def get_mapped(data: dict, tenant: str = Header(None)):
+    print("Headers:", tenant)
     logging.debug(f"API call for auto policy mapping with the application")
     try:
-        tenant = "generativeAI"
+        
         input_collection =  stored_input(tenant)
         output_collection =  stored_response(tenant)
 
         # Store the received response directly into the input collection
-        input_collection.insert_one(data)
+        #input_collection.insert_one(data)
         
         logging.debug("Input respone saved successfully")
         print("data :",data)
  
-        
+        #appId = data['appId']
+               
         # Assuming the response contains JSON data, you can parse it
-        json_data = data
+        
+        #Start of changes by Abhishek
+        
+        json_data = data.get('payload')
+
+        print("json data is {}", json_data)
+        #End of changes by Abhishek
+
         json_data_ = extract_user_data(json_data)
         print("json_data: ",json_data_)
 
@@ -249,10 +303,9 @@ async def get_mapped(data: dict):
             print("list1: ",l1_list)
 
 
-        l2 = ['Id','department', 'employeeId', 'designation', 'appUpdatedDate', 'displayName', 'mobile', 'country', 'city', 'email', 'end_date', 'firstName', 'login', 'lastName', 'userType', 'dateOfBirth', 'endDate', 'startDate', 'password', 'status', 'profilePicture', 'appUserId', 'landline']
+        l2 = ['department', 'employeeId', 'designation', 'appUpdatedDate', 'displayName', 'mobile', 'country', 'city', 'email', 'end_date', 'firstName', 'login', 'lastName', 'userType', 'dateOfBirth', 'endDate', 'startDate', 'password', 'status', 'profilePicture', 'appUserId', 'landline']
 
         l2_datatypes = {
-                        'Id': 'INTEGER',
                         'department': 'STRING',
                         'employeeId': 'STRING',
                         'designation': 'STRING',
@@ -303,11 +356,11 @@ async def get_mapped(data: dict):
         )
 
         subset_response = output_collection.aggregate([
-            {"$unwind": "$final_response" },
-            { "$match": { "final_response.value": { "$ne": None } } },
-            { "$group": {
+            {"$unwind": "$final_response"},
+            {"$match": {"final_response.value": {"$ne": None}, "appId": appId}}, 
+            {"$group": {
                 "_id": "$final_response.attributeName",
-                "data": { "$first": "$final_response" }
+                "data": {"$first": "$final_response"}
             }},
             {"$project": {
                 "_id": 0,
@@ -316,7 +369,9 @@ async def get_mapped(data: dict):
                 "l1_datatype": "$data.l1_datatype",
                 "l2_matched": "$data.l2_matched",
                 "l2_datatype": "$data.l2_datatype",
-                "value": "$data.value"
+                "value": "$data.value",
+                "similarity_percentage": "$data.similarity_percentage",
+                "confidence": "$data.confidence"
             }}
         ])
 
@@ -343,6 +398,32 @@ async def get_mapped(data: dict):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
+
+@app.post("/generativeaisrvc/map_fields_to_policy/")
+async def map_fields_to_policy(payload: Dict[str, Any]):
+    body = payload.get("body")
+    policy_mapping = payload.get("policyMapping")
+
+    if not body or not policy_mapping:
+        raise HTTPException(status_code=400, detail="Body and policyMapping are required in the payload")
+
+    mapped_data = {}
+
+    for field, value in body.items():
+        if isinstance(value, dict):
+            # If the value is a dictionary (nested object), map its nested fields
+            mapped_data[field] = map_nested_fields_to_policy(value, policy_mapping)
+        else:
+            # Map non-nested fields
+            mapped_field, placeholder = map_field_to_policy(field, policy_mapping)
+            if placeholder is not None:
+                mapped_data[field] = placeholder
+            else:
+                mapped_data[field] = value
+
+    return mapped_data
+
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=5000)

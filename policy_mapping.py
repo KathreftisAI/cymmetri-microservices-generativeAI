@@ -303,10 +303,9 @@ async def get_mapped(data: dict, tenant: str = Header(None)):
             print("list1: ",l1_list)
 
 
-        l2 = ['Id','department', 'employeeId', 'designation', 'appUpdatedDate', 'displayName', 'mobile', 'country', 'city', 'email', 'end_date', 'firstName', 'login', 'lastName', 'userType', 'dateOfBirth', 'endDate', 'startDate', 'password', 'status', 'profilePicture', 'appUserId', 'landline']
+        l2 = ['department', 'employeeId', 'designation', 'appUpdatedDate', 'displayName', 'mobile', 'country', 'city', 'email', 'end_date', 'firstName', 'login', 'lastName', 'userType', 'dateOfBirth', 'endDate', 'startDate', 'password', 'status', 'profilePicture', 'appUserId', 'landline']
 
         l2_datatypes = {
-                        'Id': 'INTEGER',
                         'department': 'STRING',
                         'employeeId': 'STRING',
                         'designation': 'STRING',
@@ -357,11 +356,11 @@ async def get_mapped(data: dict, tenant: str = Header(None)):
         )
 
         subset_response = output_collection.aggregate([
-            {"$unwind": "$final_response" },
-            { "$match": { "final_response.value": { "$ne": None } } },
-            { "$group": {
+            {"$unwind": "$final_response"},
+            {"$match": {"final_response.value": {"$ne": None}, "appId": appId}}, 
+            {"$group": {
                 "_id": "$final_response.attributeName",
-                "data": { "$first": "$final_response" }
+                "data": {"$first": "$final_response"}
             }},
             {"$project": {
                 "_id": 0,
@@ -370,7 +369,9 @@ async def get_mapped(data: dict, tenant: str = Header(None)):
                 "l1_datatype": "$data.l1_datatype",
                 "l2_matched": "$data.l2_matched",
                 "l2_datatype": "$data.l2_datatype",
-                "value": "$data.value"
+                "value": "$data.value",
+                "similarity_percentage": "$data.similarity_percentage",
+                "confidence": "$data.confidence"
             }}
         ])
 
