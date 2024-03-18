@@ -35,6 +35,9 @@ def ResponseModel(data, message, code=200, error_code=None):
         "error_code": error_code
     }
 
+def ErrorResponseModel(error, code, message):
+    return {"error": error, "code": code, "message": message}
+
 def stored_input(tenant: str):
     return get_collection(tenant, "schema_maker_input")
 
@@ -72,103 +75,109 @@ def convert_string_to_list(input_str: str) -> List[str]:
     # Remove leading and trailing whitespaces, and split by ','
     return [element.strip() for element in input_str.strip('[]').split(',')]
 
-#--------generate requestor_id-----------
+#--------generate request_id-----------
 def generate_request_id():
     id = uuid.uuid1()
     return id.hex
 
 #-----------------------------extracting the user object from response-----------------
-
 def extract_user_data(response):
-    logging.debug(f"extracting the users from the nested json")
-    user_data_list = []
+    try:
+        logging.debug(f"extracting the users from the nested json")
+        user_data_list = []
 
-    def is_user_data(obj):
-        # Check if object contains at least one of the common user data keys
-        user_keys = {'displayName', 'givenName' 'email', 'id', 'DateOfBirth'}
-        return any(key in obj for key in user_keys)
+        def is_user_data(obj):
+            # Check if object contains at least one of the common user data keys
+            user_keys = {'displayName', 'givenName' 'email', 'id', 'DateOfBirth'}
+            return any(key in obj for key in user_keys)
 
-    def traverse(obj):
-        # Recursively traverse the JSON object
-        nonlocal user_data_list
-        if isinstance(obj, dict):
-            if is_user_data(obj):
-                user_data_list.append(obj)
-            else:
-                for value in obj.values():
-                    traverse(value)
-        elif isinstance(obj, list):
-            for item in obj:
-                traverse(item)
+        def traverse(obj):
+            # Recursively traverse the JSON object
+            nonlocal user_data_list
+            if isinstance(obj, dict):
+                if is_user_data(obj):
+                    user_data_list.append(obj)
+                else:
+                    for value in obj.values():
+                        traverse(value)
+            elif isinstance(obj, list):
+                for item in obj:
+                    traverse(item)
 
-    traverse(response)
+        traverse(response)
 
-    return user_data_list
+        return user_data_list
+    except Exception as e:
+        raise HTTPException(status_code=400, detail="INVALID_JSON_DATA")
+    
 
 #---------------------------extracting keys, datatype, label and jsonpath----------------
 
 def get_distinct_keys_and_datatypes(json_data):
-    logging.debug(f"extracting the properties from the json data")
-    distinct_keys_datatypes = []
+    try:
+        logging.debug(f"extracting the properties from the json data")
+        distinct_keys_datatypes = []
 
-    def explore_json(obj, path=""):
-        if isinstance(obj, dict):
-            for key, value in obj.items():
-                new_path = f"{path}.{key}" if path else key
-                if isinstance(value, dict) or isinstance(value, list):
-                    explore_json(value, new_path)
-                else:
-                    datatype = get_data_type(value)
-                    distinct_keys_datatypes.append({
-                        "jsonpath": new_path,
-                        "label": key,
-                        "datatype": datatype,
-                        "value": value
-                    })
-        elif isinstance(obj, list):
-            for index, item in enumerate(obj):
-                new_path = f"{path}.{index}" if path else str(index)
-                if isinstance(item, dict):
-                    explore_json(item, new_path)
-                else:
-                    datatype = get_data_type(item)
-                    distinct_keys_datatypes.append({
-                        "jsonpath": new_path,
-                        "label": f"Index {index}",
-                        "datatype": datatype,
-                        "value": item
-                    })
-
-    def get_data_type(value):
-        if isinstance(value, str):
-            try:
-                # Try parsing the value as a date
-                parse_result = parse(value)
-                if (parse_result.strftime('%Y-%m-%d') == value) or (parse_result.strftime('%d-%m-%y') == value):
-                    return 'DATE'  # Date if the parsed value matches one of the date formats
-                else:
-                    if parse_result.time() != datetime.time(0, 0, 0):
-                        return 'DATETIME'
+        def explore_json(obj, path=""):
+            if isinstance(obj, dict):
+                for key, value in obj.items():
+                    new_path = f"{path}.{key}" if path else key
+                    if isinstance(value, dict) or isinstance(value, list):
+                        explore_json(value, new_path)
                     else:
-                        return 'STRING'
-            except (ValueError, OverflowError):
-                return 'STRING'  # Fallback to string if parsing as date/datetime fails
-        elif isinstance(value, bool):
-            return 'BOOLEAN'
-        elif isinstance(value, int):
-            return 'INTEGER'
-        elif isinstance(value, float):
-            return 'FLOAT'
-        elif isinstance(value, list):
-            return 'ARRAY'
-        elif value is None:
-            return None  # Custom type for null values
-        else:
-            return 'CUSTOM'
+                        datatype = get_data_type(value)
+                        distinct_keys_datatypes.append({
+                            "jsonpath": new_path,
+                            "label": key,
+                            "datatype": datatype,
+                            "value": value
+                        })
+            elif isinstance(obj, list):
+                for index, item in enumerate(obj):
+                    new_path = f"{path}.{index}" if path else str(index)
+                    if isinstance(item, dict):
+                        explore_json(item, new_path)
+                    else:
+                        datatype = get_data_type(item)
+                        distinct_keys_datatypes.append({
+                            "jsonpath": new_path,
+                            "label": f"Index {index}",
+                            "datatype": datatype,
+                            "value": item
+                        })
+
+        def get_data_type(value):
+            if isinstance(value, str):
+                try:
+                    # Try parsing the value as a date
+                    parse_result = parse(value)
+                    if (parse_result.strftime('%Y-%m-%d') == value) or (parse_result.strftime('%d-%m-%y') == value):
+                        return 'DATE'  # Date if the parsed value matches one of the date formats
+                    else:
+                        if parse_result.time() != datetime.time(0, 0, 0):
+                            return 'DATETIME'
+                        else:
+                            return 'STRING'
+                except (ValueError, OverflowError):
+                    return 'STRING'  # Fallback to string if parsing as date/datetime fails
+            elif isinstance(value, bool):
+                return 'BOOLEAN'
+            elif isinstance(value, int):
+                return 'INTEGER'
+            elif isinstance(value, float):
+                return 'FLOAT'
+            elif isinstance(value, list):
+                return 'ARRAY'
+            elif value is None:
+                return None  # Custom type for null values
+            else:
+                return 'CUSTOM'
 
 
-    explore_json(json_data)
-    return distinct_keys_datatypes
+        explore_json(json_data)
+        return distinct_keys_datatypes
+    except Exception as e:
+       raise HTTPException(status_code=400, detail="INVALID_JSON_DATA")
 
 #-------------------fuzzy logic matching function----------------------
 
@@ -218,28 +227,30 @@ def compare_lists_with_fuzzy(l1, l2, threshold=50):
 
 #----------------------to get the confidence level based on schema_maker_score
 def get_confidence_level(similarity_score: float, score_collection) -> str:
+    try:
+        # Query the collection to find the confidence level based on the similarity score
+        score_doc = score_collection.find_one({
+            "$or": [
+                {"HIGH": {"$elemMatch": {"$gte": similarity_score}}},
+                {"MEDIUM": {"$elemMatch": {"$gte": similarity_score}}},
+                {"LOW": {"$elemMatch": {"$gte": similarity_score}}}
+            ]
+        })
 
-    # Query the collection to find the confidence level based on the similarity score
-    score_doc = score_collection.find_one({
-        "$or": [
-            {"HIGH": {"$elemMatch": {"$gte": similarity_score}}},
-            {"MEDIUM": {"$elemMatch": {"$gte": similarity_score}}},
-            {"LOW": {"$elemMatch": {"$gte": similarity_score}}}
-        ]
-    })
-
-    # Extract the confidence level based on the matched range
-    if score_doc:
-        if similarity_score >= score_doc['HIGH'][0]:
-            return "HIGH"
-        elif similarity_score >= score_doc['MEDIUM'][0]:
-            return "MEDIUM"
-        elif similarity_score >= score_doc['LOW'][0]:
-            return "LOW"
+        # Extract the confidence level based on the matched range
+        if score_doc:
+            if similarity_score >= score_doc['HIGH'][0]:
+                return "HIGH"
+            elif similarity_score >= score_doc['MEDIUM'][0]:
+                return "MEDIUM"
+            elif similarity_score >= score_doc['LOW'][0]:
+                return "LOW"
+            else:
+                return "Unknown"  # Should not happen if the schema is properly defined
         else:
-            return "Unknown"  # Should not happen if the schema is properly defined
-    else:
-        return "Unknown"  # No matching range found, return Unknown
+            return "Unknown"  # No matching range found, return Unknown
+    except Exception as e:
+       raise HTTPException(status_code=400, detail="score_collection_error")
 
 
 #----------------------generates final response---------------
@@ -251,28 +262,29 @@ def generate_final_response(similar_elements: List[Dict[str, Union[str, int]]], 
     # Create a dictionary for easy lookup of response_data based on labels
     response_lookup = {data['label']: data for data in response_data}
     for element in similar_elements:
-        # Find matching element in response_data based on label
-        matched_data = next((data for data in response_data if data['label'] == element['element_name_l1']), None)
-    
+        matched_data = [data for data in response_data if data['label'] == element['element_name_l1']]
+
         if matched_data:
-            l2_datatype = l2_datatypes.get(element['element_name_l2'], None)
-            # Query the schema_maker_score collection to get the confidence level
-            confidence = get_confidence_level(element['similarity_percentage'],score_collection)
-            final_response.append({
-                'jsonPath': matched_data['jsonpath'],
-                'attributeName': element['element_name_l1'],
-                'l1_datatype': matched_data['datatype'],
-                'l2_matched': element['element_name_l2'],
-                'l2_datatype': l2_datatype,
-                'value': matched_data['value'],
-                'similarity_percentage': element['similarity_percentage'],
-                'confidence': confidence  # Include confidence level
-            })
-            processed_labels.add(element['element_name_l1'])  # Track processed labels
+            for match in matched_data:
+                l2_datatype = l2_datatypes.get(element['element_name_l2'], None)
+                # Query the schema_maker_score collection to get the confidence level
+                confidence = get_confidence_level(element['similarity_percentage'], score_collection)
+                final_response.append({
+                    'jsonPath': match['jsonpath'],
+                    'attributeName': element['element_name_l1'],
+                    'l1_datatype': match['datatype'],
+                    'l2_matched': element['element_name_l2'],
+                    'l2_datatype': l2_datatype,
+                    'value': match['value'],
+                    'similarity_percentage': element['similarity_percentage'],
+                    'confidence': confidence  # Include confidence level
+                })
+                processed_labels.add(element['element_name_l1'])  # Track processed labels
         else:
             print(f"No matched data found for {element['element_name_l1']}")
 
-    
+    print("processed_labels: ",processed_labels)
+
     # Handle unmatched elements from l1
     for data in response_data:
         if data['label'] not in processed_labels:
@@ -349,9 +361,19 @@ async def get_mapped(data: dict, tenant: str = Header(None)):
 
         # Store the received response directly into the input collection
         #input_collection.insert_one(data)
-        
+
         #logging.debug("Input respone saved successfully")
-        #print("data :",data)
+
+        # Check if 'appId' and 'payload' are present in the request
+        if 'appId' not in data:
+            raise HTTPException(status_code=400, detail="Missing 'appId' in request")
+        elif 'payload' not in data:
+            raise HTTPException(status_code=400, detail="Missing 'payload' in request")
+
+        # Validate the format of 'payload'
+        if not isinstance(data['payload'], dict):
+            raise HTTPException(status_code=400, detail="'payload' must be a dictionary")
+        
  
         json_data = data.get('payload')
 
@@ -363,6 +385,8 @@ async def get_mapped(data: dict, tenant: str = Header(None)):
 
         response_data = get_distinct_keys_and_datatypes(json_data_)
         #response_data=list(response_data.values())
+        #print("response_data:", response_data)
+
 
         l1 = [item['label'] for item in response_data]
 
@@ -412,10 +436,11 @@ async def get_mapped(data: dict, tenant: str = Header(None)):
         threshold = 60
 
         result = compare_lists_with_fuzzy(l1_list, l2_list, threshold)
+        #print("result: ",result)
 
         appId = data.get("appId")
 
-        requestor_id = generate_request_id()
+        request_id = generate_request_id()
 
         
         score_collection = stored_score(tenant, appId)
@@ -431,7 +456,6 @@ async def get_mapped(data: dict, tenant: str = Header(None)):
             {"$set": final_response_dict},
             upsert=True
         )
-
 
         logging.debug("Final response saved successfully")
 
@@ -475,7 +499,7 @@ async def get_mapped(data: dict, tenant: str = Header(None)):
 
         aggregated_data = {
             "appId": appId,
-            "requestor_id": requestor_id,
+            "request_id": request_id,
             "subset_data": subset_response_data
         }
 
@@ -484,41 +508,72 @@ async def get_mapped(data: dict, tenant: str = Header(None)):
         logging.debug("subset response saved successfully")
 
         data_response = {
-        "requestor_id": requestor_id,
+        "request_id": request_id,
         "content": json_serializable_response
     }
 
         #return JSONResponse(content=json_serializable_response)
         return ResponseModel(data=data_response, message="Policy mapping generated successfully")
-
+    
+    except HTTPException:
+        raise 
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return ErrorResponseModel(error=str(e), code=500, message="Exception while running policy mappping.")
     
 
 @app.post("/generativeaisrvc/map_fields_to_policy/")
 async def map_fields_to_policy(payload: Dict[str, Any]):
-    body = payload.get("body")
-    policy_mapping = payload.get("policyMapping")
+    try:
+        body = payload.get("body")
+        policy_mapping = payload.get("policyMapping")
 
-    if not body or not policy_mapping:
-        raise HTTPException(status_code=400, detail="Body and policyMapping are required in the payload")
+        if not body:
+            raise HTTPException(status_code=400, detail="body empty")
+        elif not policy_mapping:
+            raise HTTPException(status_code=400, detail="policy_mapping empty")
 
-    mapped_data = {}
+        mapped_data = {}
 
-    for field, value in body.items():
-        if isinstance(value, dict):
-            # If the value is a dictionary (nested object), map its nested fields
-            mapped_data[field] = map_nested_fields_to_policy(value, policy_mapping)
-        else:
-            # Map non-nested fields
-            mapped_field, placeholder = map_field_to_policy(field, policy_mapping)
-            if placeholder is not None:
-                mapped_data[field] = placeholder
+        for field, value in body.items():
+            if isinstance(value, dict):
+                # If the value is a dictionary (nested object), map its nested fields
+                mapped_data[field] = map_nested_fields_to_policy(value, policy_mapping)
             else:
-                mapped_data[field] = value
+                # Map non-nested fields
+                mapped_field, placeholder = map_field_to_policy(field, policy_mapping)
+                if placeholder is not None:
+                    mapped_data[field] = placeholder
+                else:
+                    mapped_data[field] = value
 
-    return mapped_data
+        return mapped_data
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        return ErrorResponseModel(error=str(e), code=500, message="Exception while running mapping field.")
+    
+    
+# @app.get('/query_requestor_id')
+# async def query_requestor_id(requestor_id: str, tenant: str = Header(None)):
+#     if not requestor_id:
+#         raise HTTPException(status_code=400, detail="requestor_id missing")
+    
+#     subset_collection = stored_policy_mapped(tenant)
+    
+#     #Implement the policyMaptenant collection data coming from shivani
+    
+
+#     # Check if requestor_id is present in both collections
+#     result1 = subset_collection.find_one({'requestor_id': requestor_id})
+#     result2 = collection2.find_one({'requestor_id': requestor_id})
+
+#     if result1 and result2:
+#         return {"status": "ok"}
+#     else:
+#         raise HTTPException(status_code=404, detail="requestor_id not found")
+
 
 
 if __name__ == "__main__":
