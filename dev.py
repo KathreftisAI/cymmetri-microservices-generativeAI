@@ -110,12 +110,10 @@ def extract_user_data(response):
     except Exception as e:
         raise HTTPException(status_code=400, detail="INVALID_JSON_DATA")
     
-
 #---------------------------extracting keys, datatype, label and jsonpath----------------
-
 def get_distinct_keys_and_datatypes(json_data):
     try:
-        logging.debug(f"extracting the properties from the json data")
+        logging.debug("Extracting the properties from the JSON data")
         distinct_keys_datatypes = []
 
         def explore_json(obj, path=""):
@@ -133,33 +131,41 @@ def get_distinct_keys_and_datatypes(json_data):
                             "value": value
                         })
             elif isinstance(obj, list):
-                for index, item in enumerate(obj):
-                    new_path = f"{path}.{index}" if path else str(index)
-                    if isinstance(item, dict):
-                        explore_json(item, new_path)
-                    else:
-                        datatype = get_data_type(item)
-                        distinct_keys_datatypes.append({
-                            "jsonpath": new_path,
-                            "label": f"Index {index}",
-                            "datatype": datatype,
-                            "value": item
-                        })
+                if not obj:  # Check if the list is empty
+                    datatype = 'ARRAY'
+                    distinct_keys_datatypes.append({
+                        "jsonpath": path,
+                        "label": path.split('.')[-1],  # Get the key name from the path
+                        "datatype": datatype,
+                        "value": obj
+                    })
+                else:
+                    for index, item in enumerate(obj):
+                        new_path = f"{path}.{index}" if path else str(index)
+                        if isinstance(item, dict) or isinstance(item, list):
+                            explore_json(item, new_path)
+                        else:
+                            datatype = get_data_type(item)
+                            distinct_keys_datatypes.append({
+                                "jsonpath": new_path,
+                                "label": f"Index {index}",
+                                "datatype": datatype,
+                                "value": item
+                            })
 
         def get_data_type(value):
             if isinstance(value, str):
                 try:
-                    # Try parsing the value as a date
                     parse_result = parse(value)
                     if (parse_result.strftime('%Y-%m-%d') == value) or (parse_result.strftime('%d-%m-%y') == value):
-                        return 'DATE'  # Date if the parsed value matches one of the date formats
+                        return 'DATE'
                     else:
                         if parse_result.time() != datetime.time(0, 0, 0):
                             return 'DATETIME'
                         else:
                             return 'STRING'
                 except (ValueError, OverflowError):
-                    return 'STRING'  # Fallback to string if parsing as date/datetime fails
+                    return 'STRING'
             elif isinstance(value, bool):
                 return 'BOOLEAN'
             elif isinstance(value, int):
@@ -169,15 +175,15 @@ def get_distinct_keys_and_datatypes(json_data):
             elif isinstance(value, list):
                 return 'ARRAY'
             elif value is None:
-                return None  # Custom type for null values
+                return None
             else:
                 return 'CUSTOM'
-
 
         explore_json(json_data)
         return distinct_keys_datatypes
     except Exception as e:
-       raise HTTPException(status_code=400, detail="INVALID_JSON_DATA")
+        raise HTTPException(status_code=400, detail="INVALID_JSON_DATA")
+
 
 #-------------------fuzzy logic matching function----------------------
 
@@ -282,8 +288,6 @@ def generate_final_response(similar_elements: List[Dict[str, Union[str, int]]], 
                 processed_labels.add(element['element_name_l1'])  # Track processed labels
         else:
             print(f"No matched data found for {element['element_name_l1']}")
-
-    print("processed_labels: ",processed_labels)
 
     # Handle unmatched elements from l1
     for data in response_data:
