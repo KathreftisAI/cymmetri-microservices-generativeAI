@@ -57,9 +57,9 @@ def stored_score(tenant: str, appId: str):
     # if not index_exists:
     #     score_collection.create_index("appId", unique=True)
     confidence_levels = {
-        "HIGH": [70, 100],
-        "LOW": [0, 30],
-        "MEDIUM": [31, 69]
+        "HIGH": [0.7, 1],
+        "LOW": [0, 0.3],
+        "MEDIUM": [0.31, 0.69]
     }
     # Update or insert a single document for the given appId with confidence levels as fields
     score_collection.update_one(
@@ -221,7 +221,7 @@ def compare_lists_with_fuzzy(l1, l2, threshold=50):
  
     similar_elements = []
     for element_l1, element_l2 in zip(matching_elements_l1, matching_elements_l2):
-        similarity_percentage = fuzz.ratio(element_l1.lower(), element_l2.lower())
+        similarity_percentage = fuzz.ratio(element_l1.lower(), element_l2.lower())/ 100
         similar_elements.append({
             "element_name_l1": element_l1,
             "element_name_l2": element_l2,
@@ -245,14 +245,14 @@ def get_confidence_level(similarity_score: float, score_collection) -> str:
 
         # Extract the confidence level based on the matched range
         if score_doc:
-            if similarity_score >= score_doc['HIGH'][0]:
+            if similarity_score >= score_doc['HIGH'][0] and similarity_score <= score_doc['HIGH'][1]:
                 return "HIGH"
-            elif similarity_score >= score_doc['MEDIUM'][0]:
+            elif similarity_score >= score_doc['MEDIUM'][0] and similarity_score <= score_doc['MEDIUM'][1]:
                 return "MEDIUM"
-            elif similarity_score >= score_doc['LOW'][0]:
+            elif similarity_score >= score_doc['LOW'][0] and similarity_score <= score_doc['LOW'][1]:
                 return "LOW"
             else:
-                return "Unknown"  # Should not happen if the schema is properly defined
+                return "Unknown"
         else:
             return "Unknown"  # No matching range found, return Unknown
     except Exception as e:
