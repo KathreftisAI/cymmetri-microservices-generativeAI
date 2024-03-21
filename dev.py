@@ -27,6 +27,9 @@ logging.basicConfig(
     format='[%(asctime)s] %(levelname)s in %(filename)s on %(lineno)d: %(message)s',
 )
 
+#------------------- for creating dict---------------
+synonyms_dict = {'department': {'division': 1, 'section': 1, 'unit': 1, 'branch': 1, 'sector': 1, 'departmentalunit': 1, 'team': 1, 'segment': 1, 'group': 1, 'subdivision': 1, 'area': 1, 'office': 1, 'bureau': 1, 'wing': 1, 'part': 1, 'component': 1, 'sphere': 1, 'category': 1, 'subunit': 1, 'subsection': 1}, 'employeeId': {'staffID': 1, 'workerID': 1, 'employeenumber': 1, 'identificationnumber': 1, 'personnelcode': 1, 'staffcode': 1, 'workercode': 1, 'employeereference': 1, 'staffreference': 1, 'personnelnumber': 1, 'employmentID': 1, 'jobID': 1, 'workID': 1, 'staffidentification': 1, 'staffreferencenumber': 1, 'employeeidentifier': 1, 'workeridentifier': 1, 'employmentnumber': 1, 'personnelID': 1, 'personnelidentifier': 1}, 'designation': {'title': 1, 'position': 1, 'role': 1, 'rank': 1, 'jobtitle': 1, 'function': 1, 'appointment': 1, 'capacity': 1, 'post': 1, 'task': 1, 'duty': 1, 'responsibility': 1, 'occupation': 1, 'roletitle': 1, 'positiontitle': 1, 'worktitle': 1, 'jobrole': 1, 'jobposition': 1, 'jobdesignation': 1, 'functiontitle': 1}, 'appUpdatedDate': {'applicationupdatedate': 1, 'softwareupdatedate': 1, 'appmodificationdate': 1, 'updatetimestamp': 1, 'softwarerevisiondate': 1, 'appupgradedate': 1, 'programupdatedate': 1, 'softwarerefreshdate': 1, 'appenhancementdate': 1, 'modificationtimestamp': 1, 'upgradetimestamp': 1, 'revisiontimestamp': 1, 'refreshtimestamp': 1, 'enhancementtimestamp': 1, 'softwarechangedate': 1, 'appchangedate': 1, 'changetimestamp': 1, 'updatetime': 1, 'modificationdate': 1, 'revisiondate': 1}, 'displayName': {'namedisplayed': 1, 'visiblename': 1, 'publicname': 1, 'nameshown': 1, 'presentationname': 1, 'exhibitedname': 1, 'publiclyshownname': 1, 'visibletitle': 1, 'exhibitedtitle': 1, 'publiclyshowntitle': 1, 'presentationtitle': 1, 'showntitle': 1, 'displayedtitle': 1, 'visibledesignation': 1, 'exhibiteddesignation': 1, 'publiclyshowndesignation': 1, 'presentationdesignation': 1, 'showndesignation': 1, 'displayeddesignation': 1, 'displayedidentity': 1}, 'mobile': {'cellular': 1, 'cellphone': 1, 'mobilephone': 1, 'wirelessphone': 1, 'portablephone': 1, 'handset': 1, 'smartphone': 1, 'cell': 1, 'mobiledevice': 1, 'mobilecellular': 1, 'portabledevice': 1, 'wirelessdevice': 1, 'cellulardevice': 1, 'handhelddevice': 1, 'cellularphone': 1, 'cellulartelephone': 1, 'mobileunit': 1, 'wirelessunit': 1}, 'country': {'nation': 1, 'state': 1, 'territory': 1, 'land': 1, 'countrystate': 1, 'nationstate': 1, 'realm': 1, 'region': 1, 'commonwealth': 1, 'province': 1, 'domain': 1, 'sovereignstate': 1, 'nationalterritory': 1, 'nationterritory': 1, 'countryterritory': 1, 'homeland': 1, 'fatherland': 1, 'motherland': 1, 'nativeland': 1, 'soil': 1}, 'city': {'metropolis': 1, 'urbancenter': 1, 'town': 1, 'municipality': 1, 'cityscape': 1, 'borough': 1, 'locality': 1, 'urbanarea': 1, 'downtown': 1, 'community': 1, 'village': 1, 'conurbation': 1, 'township': 1, 'megalopolis': 1, 'cosmopolis': 1, 'megalopolitanarea': 1, 'metropolitanarea': 1, 'megalopolitanregion': 1, 'citycenter': 1, 'citydistrict': 1}, 'email': {'electronicmail': 1, 'emailaddress': 1, 'e-message': 1, 'emailcorrespondence': 1, 'digitalmail': 1, 'e-mail': 1, 'internetmail': 1, 'onlinemail': 1, 'electroniccorrespondence': 1, 'cybermail': 1, 'virtualmail': 1, 'webmail': 1, 'internetmessage': 1, 'e-post': 1, 'e-letter': 1, 'electronicmessage': 1, 'e-communique': 1, 'digitalmessage': 1, 'onlinemessage': 1, 'webmessage': 1}, 'end_date': {'enddate': 1, 'terminationdate': 1, 'conclusiondate': 1, 'finishdate': 1, 'completiondate': 1, 'closingdate': 1, 'expirationdate': 1, 'finaldate': 1, 'culminationdate': 1, 'endingdate': 1, 'expirydate': 1, 'concludingdate': 1, 'ceasingdate': 1, 'lastdate': 1, 'terminationtime': 1, 'conclusiontime': 1, 'finishtime': 1, 'completiontime': 1, 'closingtime': 1, 'expirationtime': 1}, 'firstName': {'givenname': 1, 'forename': 1, 'firstname': 1, 'Christianname': 1, 'personalname': 1, 'individualname': 1, 'giventitle': 1, 'initialname': 1, 'name': 1, 'givenappellation': 1, 'appellation': 1, 'nametag': 1, 'namelabel': 1, 'givendesignation': 1, 'givenidentity': 1, 'title': 1, 'handle': 1, 'moniker': 1, 'nickname': 1, 'nomenclature': 1}, 'login': {'userprincipalname': 1, 'sign-in': 1, 'logon': 1, 'logincredentials': 1, 'access': 1, 'accesscode': 1, 'username': 1, 'userID': 1, 'loginID': 1, 'logonID': 1, 'sign-in details': 1, 'accessdetails': 1, 'accessinformation': 1, 'sign-ininformation': 1, 'logoninformation': 1, 'credentials': 1, 'authentication': 1, 'loginname': 1, 'sign-inname': 1, 'logonname': 1, 'accessname': 1}, 'lastName': {'familyname': 1, 'surname': 1, 'lastname': 1, 'secondname': 1, 'patronymic': 1, 'matronymic': 1, 'sirename': 1, 'maidenname': 1, 'maidensurname': 1, 'parentalname': 1, 'parentalsurname': 1, 'cognomen': 1, 'familytitle': 1, 'familyappellation': 1, 'familylabel': 1, 'familydesignation': 1, 'familyidentity': 1, 'familyhandle': 1}, 'userType': {'roletype': 1, 'usercategory': 1, 'accounttype': 1, 'userrole': 1, 'profiletype': 1, 'identitytype': 1, 'classification': 1, 'userclassification': 1, 'rolecategory': 1, 'userclass': 1, 'identityclass': 1, 'profileclass': 1, 'usergroup': 1, 'identitygroup': 1, 'profilegroup': 1, 'roleclassification': 1, 'userroleclassification': 1, 'identityroleclassification': 1, 'profileroleclassification': 1, 'useridentitytype': 1}, 'dateOfBirth': {'birthdate': 1, 'DOB': 1, 'dateofbirth': 1, 'natalday': 1, 'bornday': 1, 'anniversaryofbirth': 1, 'nativitydate': 1, 'birthday': 1, 'borndate': 1, 'nataldate': 1, 'anniversaryofnativity': 1, 'natalanniversary': 1, 'bornanniversary': 1, 'birthanniversary': 1, 'nativityday': 1, 'birthdayanniversary': 1}, 'endDate': {'enddate': 1, 'conclusiondate': 1, 'terminationdate': 1, 'finishdate': 1, 'completiondate': 1, 'closingdate': 1, 'expirationdate': 1, 'finaldate': 1, 'culminationdate': 1, 'endingdate': 1, 'expirydate': 1, 'concludingdate': 1, 'ceasingdate': 1, 'lastdate': 1, 'terminationtime': 1, 'conclusiontime': 1, 'finishtime': 1, 'completiontime': 1, 'closingtime': 1, 'expirationtime': 1}, 'startDate': {'startdate': 1, 'commencementdate': 1, 'beginningdate': 1, 'initiationdate': 1, 'commencingdate': 1, 'onsetdate': 1, 'commencementtime': 1, 'initiationtime': 1, 'starttime': 1, 'commencingtime': 1, 'onsettime': 1, 'commencementpoint': 1, 'initiationpoint': 1, 'startingpoint': 1, 'commencingpoint': 1, 'onsetpoint': 1, 'launchdate': 1, 'kickoffdate': 1, 'openingdate': 1, 'inaugurationdate': 1}, 'password': {'passcode': 1, 'accesscode': 1, 'securitycode': 1, 'logincode': 1, 'passphrase': 1, 'authenticationcode': 1, 'key': 1, 'secretkey': 1, 'code': 1, 'PIN': 1, 'loginkey': 1, 'accesskey': 1, 'passkey': 1, 'securitykey': 1, 'identificationcode': 1, 'authenticationkey': 1, 'cipher': 1, 'loginpassword': 1, 'securitypassword': 1, 'accesspassword': 1}, 'status': {'condition': 1, 'state': 1, 'situation': 1, 'standing': 1, 'position': 1, 'circumstance': 1, 'statusquo': 1, 'mode': 1, 'stage': 1, 'phase': 1, 'stateofaffairs': 1, 'positioning': 1, 'conditioning': 1, 'stateofbeing': 1, 'statuscondition': 1, 'statusstate': 1, 'statussituation': 1, 'statusposition': 1, 'statuscircumstance': 1, 'statusphase': 1}, 'profilePicture': {'avatar': 1, 'userimage': 1, 'displaypicture': 1, 'profileimage': 1, 'profilephoto': 1, 'userphoto': 1, 'portrait': 1, 'icon': 1, 'thumbnail': 1, 'representation': 1, 'graphic': 1, 'digitalimage': 1, 'visualrepresentation': 1, 'picture': 1, 'photo': 1, 'displayimage': 1, 'profileavatar': 1, 'useravatar': 1, 'image': 1, 'profilerepresentation': 1}, 'appUserId': {'applicationuserID': 1, 'softwareuseridentifier': 1, 'appaccountID': 1, 'userID': 1, 'accountID': 1, 'useridentity': 1, 'usercode': 1, 'useridentifier': 1, 'appidentity': 1, 'softwareID': 1, 'softwareidentifier': 1, 'applicationID': 1, 'applicationidentifier': 1, 'appcode': 1, 'softwarecode': 1, 'accountcode': 1, 'usernumber': 1, 'identitynumber': 1, 'IDcode': 1, 'IDnumber': 1}, 'landline': {'fixedline': 1, 'homephone': 1, 'landlinephone': 1, 'landlinenumber': 1, 'homephonenumber': 1, 'residencephone': 1, 'residenceline': 1, 'telephonenumber': 1, 'fixedphone': 1, 'fixedtelephone': 1, 'domesticphone': 1, 'domesticline': 1, 'domestictelphone': 1, 'housephone': 1, 'houseline': 1, 'housetelephone': 1, 'wiredphone': 1, 'wiredline': 1, 'wiredtelephone': 1, 'cordedphone': 1}}
+
 def ResponseModel(data, message, code=200, error_code=None):
     return {
         "data": data,
@@ -38,15 +41,51 @@ def ResponseModel(data, message, code=200, error_code=None):
 def ErrorResponseModel(error, code, message):
     return {"error": error, "code": code, "message": message}
 
+#--------- stored the payload as input----------
 def stored_input(tenant: str):
     return get_collection(tenant, "schema_maker_input")
 
+#--------------stored policymap for all users----------------
 def stored_response(tenant: str):
     return get_collection(tenant, "schema_maker_final_output")
 
+#------------subset policy map response--------------
 def stored_policy_mapped(tenant: str):
     return get_collection(tenant, "schema_maker_policyMap")
 
+#---------synonyms_dict for training--------
+def retreive_synonyms(tenant: str):
+    return get_collection(tenant, "synonyms_dict")
+
+#------final policymap by admin for training purpose---------
+def stored_admin_policymap(tenant: str):
+    return get_collection(tenant, "schema_maker_final_policyMap")
+
+#----------custom attributes for appending in cymmetri list-----
+def retreive_custom_attributes(tenant: str):
+    return get_collection(tenant, "custome_attribute_master")
+
+#----------update the synonyms_dict by retraining------------
+def stored_synonyms_dict(tenant: str, appId: str, synonyms_dict: dict):
+    synonyms_collection = get_collection(tenant, "synonyms_dict")
+
+    # Construct the document to be inserted or updated
+    document = {
+        "appId": appId,
+        "synonyms": {key: [{"synonym": synonym, "score": synonyms_dict[key][synonym]} for synonym in synonyms_dict[key]] for key in synonyms_dict}
+    }
+
+    # Update the document in the collection
+    synonyms_collection.update_one(
+        {"appId": appId},
+        {"$set": document},
+        upsert=True  # This will insert the document if it doesn't exist
+    )
+    logging.debug("synonyms dict collection updated/created successfully")
+
+    return synonyms_collection
+
+#----------- score for confidence level
 def stored_score(tenant: str, appId: str):
     score_collection = get_collection(tenant, "schema_maker_score")
 
@@ -57,9 +96,9 @@ def stored_score(tenant: str, appId: str):
     # if not index_exists:
     #     score_collection.create_index("appId", unique=True)
     confidence_levels = {
-        "HIGH": [70, 100],
-        "LOW": [0, 30],
-        "MEDIUM": [31, 69]
+        "HIGH": [0.7, 1],
+        "LOW": [0, 0.3],
+        "MEDIUM": [0.31, 0.69]
     }
     # Update or insert a single document for the given appId with confidence levels as fields
     score_collection.update_one(
@@ -71,6 +110,7 @@ def stored_score(tenant: str, appId: str):
     
     return score_collection
 
+#------ for preprocess purpose-----------
 def convert_string_to_list(input_str: str) -> List[str]:
     # Remove leading and trailing whitespaces, and split by ','
     return [element.strip() for element in input_str.strip('[]').split(',')]
@@ -79,6 +119,33 @@ def convert_string_to_list(input_str: str) -> List[str]:
 def generate_request_id():
     id = uuid.uuid1()
     return id.hex
+
+#--------------for adding custome attributes in cymmetri field list------------
+def add_custom_attributes_to_list(l2, l2_datatypes, tenant):
+    
+    attribute_collection = retreive_custom_attributes(tenant)
+    
+    # Query to fetch custom attributes
+    query_result = attribute_collection.find({"attributeType": "USER", "status": True})
+
+    logging.debug("query executed succesfully")
+
+    # Loop through the query results
+    for result in query_result:
+        # Get the 'name' field from the query result
+        custom_attribute_name = result['name']
+
+        # Get the 'provAttributeType' field from the query result
+        custom_attribute_type = result['provAttributeType']
+
+        # Append custom attribute name to l2 if it's not already in the list
+        if custom_attribute_name not in l2:
+            l2.append(custom_attribute_name)
+
+        # Add custom attribute to l2_datatypes
+        l2_datatypes[custom_attribute_name] = custom_attribute_type
+
+    return l2, l2_datatypes
 
 #-----------------------------extracting the user object from response-----------------
 def extract_user_data(response):
@@ -186,10 +253,7 @@ def get_distinct_keys_and_datatypes(json_data):
 
 
 #-------------------fuzzy logic matching function----------------------
-
-def compare_lists_with_fuzzy(l1, l2, threshold=50):
-    logging.debug(f"comparing logic for list1 and list2")
-    
+def compare_lists_with_fuzzy(l1, l2, threshold, synonyms_collection, appId):
     matching_elements_l1 = []
     matching_elements_l2 = []
     non_matching_elements_l1 = []
@@ -198,7 +262,9 @@ def compare_lists_with_fuzzy(l1, l2, threshold=50):
     for element_l1 in l1:
         max_similarity = 0
         matching_element_l2 = ''
- 
+        is_synonym_match = False  # Flag to track if a synonym match is found
+
+        # Check similarity with original list (l2)
         for element_l2 in l2:
             el1 = str(element_l1).lower()
             el2 = str(element_l2).lower()
@@ -206,10 +272,32 @@ def compare_lists_with_fuzzy(l1, l2, threshold=50):
             if similarity > max_similarity and similarity >= threshold:
                 max_similarity = similarity
                 matching_element_l2 = element_l2
- 
+
+        # If no match is found in the original list, check synonyms
+        if not matching_element_l2:
+            synonyms_doc = synonyms_collection.find_one({"appId": appId})
+            if synonyms_doc:
+                synonyms = synonyms_doc.get("synonyms", {})
+                for key, values in synonyms.items():
+                    for synonym_obj in values:
+                        synonym = synonym_obj.get("synonym", "").lower()
+                        score = synonym_obj.get("score", 0)
+                        adjusted_score = score * 100
+                        if el1 == synonym and adjusted_score >= threshold:
+                            matching_element_l2 = key
+                            max_similarity = adjusted_score  # Use score as similarity percentage
+                            is_synonym_match = True
+                            break
+                    if is_synonym_match:
+                        break
+            
         if matching_element_l2:
             matching_elements_l1.append(element_l1.strip("'"))
             matching_elements_l2.append(matching_element_l2.strip("'"))
+            if is_synonym_match:
+                print(f"Match found for '{element_l1}' with synonym '{matching_element_l2}' (Score: {max_similarity})")
+            else:
+                print(f"Match found for '{element_l1}' with '{matching_element_l2}' (Similarity: {max_similarity})")
         else:
             non_matching_elements_l1.append(element_l1.strip("'"))
  
@@ -221,15 +309,19 @@ def compare_lists_with_fuzzy(l1, l2, threshold=50):
  
     similar_elements = []
     for element_l1, element_l2 in zip(matching_elements_l1, matching_elements_l2):
-        similarity_percentage = fuzz.ratio(element_l1.lower(), element_l2.lower())
+        similarity_percentage = fuzz.ratio(element_l1.lower(), element_l2.lower()) / 100
+        matching_condition = "Fuzzy"
         similar_elements.append({
             "element_name_l1": element_l1,
             "element_name_l2": element_l2,
-            "similarity_percentage": similarity_percentage
+            "similarity_percentage": similarity_percentage,
+            "matching_condition": matching_condition  # Adding matching condition to the result
         })
+
  
     result = {"similar_elements": similar_elements}
     return result
+
 
 #----------------------to get the confidence level based on schema_maker_score
 def get_confidence_level(similarity_score: float, score_collection) -> str:
@@ -245,11 +337,11 @@ def get_confidence_level(similarity_score: float, score_collection) -> str:
 
         # Extract the confidence level based on the matched range
         if score_doc:
-            if similarity_score >= score_doc['HIGH'][0]:
+            if similarity_score >= score_doc['HIGH'][0] and similarity_score <= score_doc['HIGH'][1]:
                 return "HIGH"
-            elif similarity_score >= score_doc['MEDIUM'][0]:
+            elif similarity_score >= score_doc['MEDIUM'][0] and similarity_score <= score_doc['MEDIUM'][1]:
                 return "MEDIUM"
-            elif similarity_score >= score_doc['LOW'][0]:
+            elif similarity_score >= score_doc['LOW'][0] and similarity_score <= score_doc['LOW'][1]:
                 return "LOW"
             else:
                 return "Unknown"  # Should not happen if the schema is properly defined
@@ -283,7 +375,8 @@ def generate_final_response(similar_elements: List[Dict[str, Union[str, int]]], 
                     'l2_datatype': l2_datatype,
                     'value': match['value'],
                     'similarity_percentage': element['similarity_percentage'],
-                    'confidence': confidence  # Include confidence level
+                    'confidence': confidence,  # Include confidence level
+                    'matching_condition': element["matching_condition"]
                 })
                 processed_labels.add(element['element_name_l1'])  # Track processed labels
         else:
@@ -302,13 +395,13 @@ def generate_final_response(similar_elements: List[Dict[str, Union[str, int]]], 
                 'l2_datatype': '',
                 'value': data['value'],  # Use value from response_data
                 'similarity_percentage': 0,  # Default to 0 for unmatched elements
-                'confidence': confidence  # Include confidence level
+                'confidence': confidence,  # Include confidence level
+                "matching_condition": ""
             })
     
     return final_response
 
-
-
+#--------------- for mapping the body in body populating api------------------
 def map_field_to_policy(field: str, policy_mapping: List[Dict[str, Any]]) -> str:
     matched = False
     # Perform case-insensitive exact match
@@ -333,7 +426,7 @@ def map_field_to_policy(field: str, policy_mapping: List[Dict[str, Any]]) -> str
         print(f"No match found for '{field}'")
     return field, None  # Return original field if no match is found
 
-
+#------- works on nested conditions also
 def map_nested_fields_to_policy(nested_field: Dict[str, Any], policy_mapping: List[Dict[str, Any]]) -> Dict[str, Any]:
     mapped_nested_data = {}
     for field, value in nested_field.items():
@@ -350,11 +443,9 @@ def map_nested_fields_to_policy(nested_field: Dict[str, Any], policy_mapping: Li
     return mapped_nested_data
 
 
-
-## Read header as tenant
 #----------------------api for policy mapping-----------------------------
 @app.post('/generativeaisrvc/get_policy_mapped')
-async def get_mapped(data: dict, tenant: str = Header(None)):
+async def get_mapped(data: dict, tenant: str = Header(...)):
     print("Headers:", tenant)
     logging.debug(f"API call for auto policy mapping with the application")
     try:
@@ -362,7 +453,8 @@ async def get_mapped(data: dict, tenant: str = Header(None)):
         input_collection =  stored_input(tenant)
         output_collection =  stored_response(tenant)
         subset_collection = stored_policy_mapped(tenant)
-
+        synonyms_collection = retreive_synonyms(tenant)
+        
         # Store the received response directly into the input collection
         #input_collection.insert_one(data)
 
@@ -416,11 +508,11 @@ async def get_mapped(data: dict, tenant: str = Header(None)):
                         'email': 'STRING',
                         'end_date': 'DATE',
                         'firstName': 'STRING',
-                        'login': 'INTEGER',
+                        'login': 'STRING',
                         'lastName': 'STRING',
                         'userType': 'STRING',
                         'end_date': 'DATE',
-                        'login': 'INTEGER',
+                        'login': 'STRING    ',
                         'userType': 'STRING',
                         'dateOfBirth': 'DATE',
                         'endDate': 'DATE',
@@ -432,24 +524,29 @@ async def get_mapped(data: dict, tenant: str = Header(None)):
                         'landline': 'STRING'
                     }
         
+        l2, l2_datatypes = add_custom_attributes_to_list(l2, l2_datatypes, tenant)
+
+        print("list2: ",l2)
+        
         if isinstance(l2, str):
             l2_list = convert_string_to_list(l2)
         else:
             l2_list = l2
 
         threshold = 60
-
-        result = compare_lists_with_fuzzy(l1_list, l2_list, threshold)
-        #print("result: ",result)
-
         appId = data.get("appId")
 
-        request_id = generate_request_id()
+        synonyms_stored_collection = stored_synonyms_dict(tenant, appId, synonyms_dict)
 
-        
+        result = compare_lists_with_fuzzy(l1_list, l2_list, threshold, synonyms_collection, appId)
+        print("result: ",result)
+
+        request_id = generate_request_id()
+   
         score_collection = stored_score(tenant, appId)
 
         final_response = generate_final_response(result['similar_elements'], response_data, l2_datatypes, score_collection)
+        #print("final response: ",final_response)
         final_response_dict = {"final_response": final_response}
 
         # Assuming 'appId' is present in the received response
@@ -479,7 +576,8 @@ async def get_mapped(data: dict, tenant: str = Header(None)):
                 "l2_datatype": "$data.l2_datatype",
                 "value": "$data.value",
                 "similarity_percentage": "$data.similarity_percentage",
-                "confidence": "$data.confidence"
+                "confidence": "$data.confidence",
+                "matching_condition": "$data.matching_condition"
             }}
         ])
 
@@ -496,7 +594,8 @@ async def get_mapped(data: dict, tenant: str = Header(None)):
                 "l2_datatype": doc["l2_datatype"],
                 "value": doc["value"],
                 "similarity_percentage": doc["similarity_percentage"],
-                "confidence": doc["confidence"]
+                "confidence": doc["confidence"],
+                "matching_condition": doc["matching_condition"]
             }
             json_serializable_response.append(json_serializable_doc)
 
@@ -525,7 +624,7 @@ async def get_mapped(data: dict, tenant: str = Header(None)):
     except Exception as e:
         return ErrorResponseModel(error=str(e), code=500, message="Exception while running policy mappping.")
     
-
+#------- Api for body populating----------
 @app.post("/generativeaisrvc/map_fields_to_policy/")
 async def map_fields_to_policy(payload: Dict[str, Any]):
     try:
@@ -558,26 +657,16 @@ async def map_fields_to_policy(payload: Dict[str, Any]):
     except Exception as e:
         return ErrorResponseModel(error=str(e), code=500, message="Exception while running mapping field.")
     
-    
-# @app.get('/query_requestor_id')
-# async def query_requestor_id(requestor_id: str, tenant: str = Header(None)):
-#     if not requestor_id:
-#         raise HTTPException(status_code=400, detail="requestor_id missing")
-    
-#     subset_collection = stored_policy_mapped(tenant)
-    
-#     #Implement the policyMaptenant collection data coming from shivani
-    
 
-#     # Check if requestor_id is present in both collections
-#     result1 = subset_collection.find_one({'requestor_id': requestor_id})
-#     result2 = collection2.find_one({'requestor_id': requestor_id})
-
-#     if result1 and result2:
-#         return {"status": "ok"}
-#     else:
-#         raise HTTPException(status_code=404, detail="requestor_id not found")
-
+#-------------------Api fpr storing the admin final policymap for training purpose-----------
+@app.post("/generativeaisrvc/store_data")
+async def store_data(payload: dict, tenant: str = Header(None)):
+    try:
+        policymap_colection = stored_admin_policymap(tenant)
+        policymap_colection.insert_one(payload) 
+        return {"message": "Data saved successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 if __name__ == "__main__":
