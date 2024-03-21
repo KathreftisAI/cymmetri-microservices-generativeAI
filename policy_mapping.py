@@ -47,6 +47,9 @@ def stored_response(tenant: str):
 def stored_policy_mapped(tenant: str):
     return get_collection(tenant, "schema_maker_policyMap")
 
+def stored_admin_policymap(tenant: str):
+    return get_collection(tenant, "schema_maker_final_policyMap")
+
 def stored_score(tenant: str, appId: str):
     score_collection = get_collection(tenant, "schema_maker_score")
 
@@ -57,9 +60,9 @@ def stored_score(tenant: str, appId: str):
     # if not index_exists:
     #     score_collection.create_index("appId", unique=True)
     confidence_levels = {
-        "HIGH": [0.7, 1],
-        "LOW": [0, 0.3],
-        "MEDIUM": [0.31, 0.69]
+        "HIGH": [70, 100],
+        "LOW": [0, 30],
+        "MEDIUM": [31, 69]
     }
     # Update or insert a single document for the given appId with confidence levels as fields
     score_collection.update_one(
@@ -221,7 +224,7 @@ def compare_lists_with_fuzzy(l1, l2, threshold=50):
  
     similar_elements = []
     for element_l1, element_l2 in zip(matching_elements_l1, matching_elements_l2):
-        similarity_percentage = fuzz.ratio(element_l1.lower(), element_l2.lower())/ 100
+        similarity_percentage = fuzz.ratio(element_l1.lower(), element_l2.lower())
         similar_elements.append({
             "element_name_l1": element_l1,
             "element_name_l2": element_l2,
@@ -558,26 +561,15 @@ async def map_fields_to_policy(payload: Dict[str, Any]):
     except Exception as e:
         return ErrorResponseModel(error=str(e), code=500, message="Exception while running mapping field.")
     
-    
-# @app.get('/query_requestor_id')
-# async def query_requestor_id(requestor_id: str, tenant: str = Header(None)):
-#     if not requestor_id:
-#         raise HTTPException(status_code=400, detail="requestor_id missing")
-    
-#     subset_collection = stored_policy_mapped(tenant)
-    
-#     #Implement the policyMaptenant collection data coming from shivani
-    
 
-#     # Check if requestor_id is present in both collections
-#     result1 = subset_collection.find_one({'requestor_id': requestor_id})
-#     result2 = collection2.find_one({'requestor_id': requestor_id})
-
-#     if result1 and result2:
-#         return {"status": "ok"}
-#     else:
-#         raise HTTPException(status_code=404, detail="requestor_id not found")
-
+@app.post("/generativeaisrvc/store_data")
+async def store_data(payload: dict, tenant: str = Header(None)):
+    try:
+        policymap_colection = stored_admin_policymap(tenant)
+        policymap_colection.insert_one(payload) 
+        return {"message": "Data saved successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 if __name__ == "__main__":
