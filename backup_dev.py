@@ -253,6 +253,24 @@ def compare_lists_with_fuzzy(l1, l2, threshold, synonyms_collection):
                 max_similarity = similarity
                 matching_element_l2 = element_l2
 
+        # If no match is found in the original list, check synonyms
+        # if not matching_element_l2:
+        #     synonyms_doc = synonyms_collection.find_one()
+        #     if synonyms_doc:
+        #         synonyms = synonyms_doc.get("synonyms", {})
+        #         for key, values in synonyms.items():
+        #             for synonym_obj in values:
+        #                 synonym = synonym_obj.get("synonym", "").lower()
+        #                 score = synonym_obj.get("score", 0)
+        #                 adjusted_score = score * 100
+        #                 if el1 == synonym and adjusted_score >= threshold:
+        #                     matching_element_l2 = key
+        #                     max_similarity = adjusted_score  # Use score as similarity percentage
+        #                     is_synonym_match = True
+        #                     break
+        #             if is_synonym_match:
+        #                 break
+
         if not matching_element_l2:
             synonyms_doc = synonyms_collection.find_one()
             if synonyms_doc:
@@ -292,7 +310,7 @@ def compare_lists_with_fuzzy(l1, l2, threshold, synonyms_collection):
                             }
                         }
                     },
-                    { "$limit": 1 }
+                    { "$limit": 1 }  # Limiting to one document
                 ])
                 if data:
                         for document in data:

@@ -190,6 +190,51 @@ def get_distinct_keys_and_datatypes(json_data):
 
 #-------------------fuzzy logic matching function----------------------
 
+# def compare_lists_with_fuzzy(l1, l2, threshold=50):
+#     logging.debug(f"comparing logic for list1 and list2")
+    
+#     matching_elements_l1 = []
+#     matching_elements_l2 = []
+#     non_matching_elements_l1 = []
+#     non_matching_elements_l2 = []
+ 
+#     for element_l1 in l1:
+#         max_similarity = 0
+#         matching_element_l2 = ''
+ 
+#         for element_l2 in l2:
+#             el1 = str(element_l1).lower()
+#             el2 = str(element_l2).lower()
+#             similarity = fuzz.ratio(el1, el2)
+#             if similarity > max_similarity and similarity >= threshold:
+#                 max_similarity = similarity
+#                 matching_element_l2 = element_l2
+ 
+#         if matching_element_l2:
+#             matching_elements_l1.append(element_l1.strip("'"))
+#             matching_elements_l2.append(matching_element_l2.strip("'"))
+#         else:
+#             non_matching_elements_l1.append(element_l1.strip("'"))
+ 
+#     non_matching_elements_l2 = [
+#         element_l2.strip("'")
+#         for element_l2 in l2
+#         if element_l2.strip("'") not in matching_elements_l2
+#     ]
+ 
+#     similar_elements = []
+#     for element_l1, element_l2 in zip(matching_elements_l1, matching_elements_l2):
+#         similarity_percentage = fuzz.ratio(element_l1.lower(), element_l2.lower())
+#         similar_elements.append({
+#             "element_name_l1": element_l1,
+#             "element_name_l2": element_l2,
+#             "similarity_percentage": similarity_percentage
+#         })
+ 
+#     result = {"similar_elements": similar_elements}
+#     return result
+
+
 def compare_lists_with_fuzzy(l1, l2, threshold=50):
     logging.debug(f"comparing logic for list1 and list2")
     
@@ -197,6 +242,7 @@ def compare_lists_with_fuzzy(l1, l2, threshold=50):
     matching_elements_l2 = []
     non_matching_elements_l1 = []
     non_matching_elements_l2 = []
+    similar_elements = []
  
     for element_l1 in l1:
         max_similarity = 0
@@ -205,10 +251,15 @@ def compare_lists_with_fuzzy(l1, l2, threshold=50):
         for element_l2 in l2:
             el1 = str(element_l1).lower()
             el2 = str(element_l2).lower()
-            similarity = fuzz.ratio(el1, el2)
+            similarity = fuzz.ratio(el1, el2)/ 100
             if similarity > max_similarity and similarity >= threshold:
                 max_similarity = similarity
                 matching_element_l2 = element_l2
+                similar_elements.append({
+            "element_name_l1": el1,
+            "element_name_l2": el2,
+            "similarity_percentage": similarity
+        })
  
         if matching_element_l2:
             matching_elements_l1.append(element_l1.strip("'"))
@@ -216,23 +267,24 @@ def compare_lists_with_fuzzy(l1, l2, threshold=50):
         else:
             non_matching_elements_l1.append(element_l1.strip("'"))
  
-    non_matching_elements_l2 = [
-        element_l2.strip("'")
-        for element_l2 in l2
-        if element_l2.strip("'") not in matching_elements_l2
-    ]
+    # non_matching_elements_l2 = [
+    #     element_l2.strip("'")
+    #     for element_l2 in l2
+    #     if element_l2.strip("'") not in matching_elements_l2
+    # ]
  
-    similar_elements = []
-    for element_l1, element_l2 in zip(matching_elements_l1, matching_elements_l2):
-        similarity_percentage = fuzz.ratio(element_l1.lower(), element_l2.lower())
-        similar_elements.append({
-            "element_name_l1": element_l1,
-            "element_name_l2": element_l2,
-            "similarity_percentage": similarity_percentage
-        })
+    # similar_elements = []
+    # for element_l1, element_l2 in zip(matching_elements_l1, matching_elements_l2):
+    #     similarity_percentage = fuzz.ratio(element_l1.lower(), element_l2.lower())
+    #     similar_elements.append({
+    #         "element_name_l1": element_l1,
+    #         "element_name_l2": element_l2,
+    #         "similarity_percentage": similarity_percentage
+    #     })
  
     result = {"similar_elements": similar_elements}
     return result
+
 
 #----------------------to get the confidence level based on schema_maker_score
 def get_confidence_level(similarity_score: float, score_collection) -> str:
@@ -443,7 +495,7 @@ async def get_mapped(data: dict, tenant: str = Header(None)):
         threshold = 60
 
         result = compare_lists_with_fuzzy(l1_list, l2_list, threshold)
-        #print("result: ",result)
+        print("result: ",result)
 
         appId = data.get("appId")
 
