@@ -52,9 +52,6 @@ def stored_response(tenant: str):
 def stored_policy_mapped(tenant: str):
     return get_collection(tenant, "schema_maker_policyMap")
 
-#---------synonyms_dict for training--------
-# def retreive_synonyms(tenant: str):
-#     return get_collection(tenant, "amayaSynonymsMaster")
 
 #------final policymap by admin for training purpose---------
 def stored_admin_policymap(tenant: str):
@@ -63,8 +60,6 @@ def stored_admin_policymap(tenant: str):
 #----------custom attributes for appending in cymmetri list-----
 def retrieve_custom_attributes(tenant: str):
     return get_collection(tenant, "custome_attribute_master")
-
-
 
 #----------- score for confidence level
 def stored_score(tenant: str, appId: str):
@@ -238,7 +233,8 @@ def compare_lists_with_fuzzy(l1, l2, threshold, synonyms_collection):
     matching_elements_l2 = []
     non_matching_elements_l1 = []
     non_matching_elements_l2 = []
- 
+    similar_elements = []
+
     for element_l1 in l1:
         max_similarity = 0
         matching_element_l2 = ''
@@ -256,20 +252,20 @@ def compare_lists_with_fuzzy(l1, l2, threshold, synonyms_collection):
         if not matching_element_l2:
             synonyms_doc = synonyms_collection.find_one()
             if synonyms_doc:
-                threshold_synonyms  = threshold / 100                
+                threshold_synonyms = threshold / 100
                 data = synonyms_collection.aggregate([
                     {
                         "$project": {
-                            "synonymsArray": { "$objectToArray": "$synonyms" }
+                            "synonymsArray": {"$objectToArray": "$synonyms"}
                         }
                     },
-                    { "$unwind": "$synonymsArray" },
+                    {"$unwind": "$synonymsArray"},
                     {
                         "$match": {
                             "synonymsArray.v": {
                                 "$elemMatch": {
                                     "synonym": el1,
-                                    "score": { "$gt": threshold_synonyms }
+                                    "score": {"$gt": threshold_synonyms}
                                 }
                             }
                         }
@@ -284,61 +280,62 @@ def compare_lists_with_fuzzy(l1, l2, threshold, synonyms_collection):
                                     "as": "syn",
                                     "cond": {
                                         "$and": [
-                                            { "$eq": ["$$syn.synonym", el1] },
-                                            { "$gt": ["$$syn.score", threshold_synonyms] }
+                                            {"$eq": ["$$syn.synonym", el1]},
+                                            {"$gt": ["$$syn.score", threshold_synonyms]}
                                         ]
                                     }
                                 }
                             }
                         }
                     },
-                    { "$limit": 1 }
+                    {"$limit": 1}
                 ])
                 if data:
-                        for document in data:
-                            matching_element_l2 = document.get('key', None)
-                            synonyms = document.get('synonyms', [])
-                            max_similarity = None
-                            if synonyms:
-                                max_similarity = max(synonyms, key=lambda x: x.get('score', 0)).get('score', None)
-                                is_synonym_match = True
-                                break
-                            
+                    for document in data:
+                        matching_element_l2 = document.get('key', None)
+                        synonyms = document.get('synonyms', [])
+                        max_similarity = None
+                        if synonyms:
+                            max_similarity = max(synonyms, key=lambda x: x.get('score', 0)).get('score', None)
+                            is_synonym_match = True
+                            break
+
                 else:
                     matching_element_l2 = None
                     max_similarity = None
 
-            
         if matching_element_l2:
             matching_elements_l1.append(element_l1.strip("'"))
             matching_elements_l2.append(matching_element_l2.strip("'"))
             if is_synonym_match:
-                print(f"Match found for '{element_l1}' with synonym '{matching_element_l2}' (Score: {max_similarity})")
+                similar_elements.append({
+                    "element_name_l1": element_l1,
+                    "element_name_l2": matching_element_l2,
+                    "similarity_percentage": max_similarity,
+                    "matching_decision": "synonyms"
+                })
             else:
-                print(f"Match found for '{element_l1}' with fuzzy '{matching_element_l2}' (Similarity: {max_similarity})")
+                similarity_percentage = fuzz.ratio(element_l1.lower(), matching_element_l2.lower()) / 100
+                similar_elements.append({
+                    "element_name_l1": element_l1,
+                    "element_name_l2": matching_element_l2,
+                    "similarity_percentage": similarity_percentage,
+                    "matching_decision": "fuzzy"
+                })
         else:
             non_matching_elements_l1.append(element_l1.strip("'"))
- 
+
     non_matching_elements_l2 = [
         element_l2.strip("'")
         for element_l2 in l2
         if element_l2.strip("'") not in matching_elements_l2
     ]
- 
-    similar_elements = []
-    for element_l1, element_l2 in zip(matching_elements_l1, matching_elements_l2):
-        similarity_percentage = fuzz.ratio(element_l1.lower(), element_l2.lower()) / 100
-        matching_condition = "Fuzzy"
-        similar_elements.append({
-            "element_name_l1": element_l1,
-            "element_name_l2": element_l2,
-            "similarity_percentage": similarity_percentage,
-            "matching_condition": matching_condition  # Adding matching condition to the result
-        })
 
- 
-    result = {"similar_elements": similar_elements}
+    result = {
+        "similar_elements": similar_elements
+    }
     return result
+
 
 
 #----------------------to get the confidence level based on schema_maker_score
@@ -400,12 +397,13 @@ def generate_final_response(similar_elements: List[Dict[str, Union[str, int, flo
                     'value': match['value'],
                     'similarity_percentage': element['similarity_percentage'],
                     'confidence': confidence,
-                    'matching_condition': element["matching_condition"],
+                    'matching_decision': element["matching_decision"],
                     'isCustom': is_custom
                 })
                 processed_labels.add(element['element_name_l1'])
         else:
             print(f"No matched data found for {element['element_name_l1']}")
+
 
     for data in response_data:
         if data['label'] not in processed_labels:
@@ -419,7 +417,7 @@ def generate_final_response(similar_elements: List[Dict[str, Union[str, int, flo
                 'value': data['value'],
                 'similarity_percentage': 0,
                 'confidence': confidence,
-                'matching_condition': "",
+                'matching_decision': "",
                 'isCustom': False  # Explicitly false since there's no l2 match
             })
     
@@ -450,6 +448,7 @@ def map_field_to_policy(field: str, policy_mapping: List[Dict[str, Any]]) -> str
     if not matched:
         print(f"No match found for '{field}'")
     return field, None  # Return original field if no match is found
+
 
 #------- works on nested conditions also
 def map_nested_fields_to_policy(nested_field: Dict[str, Any], policy_mapping: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -569,6 +568,7 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
         #synonyms_stored_collection = stored_synonyms_dict(tenant, appId, synonyms_dict)
 
         result = compare_lists_with_fuzzy(l1_list, l2_list, threshold, synonyms_collection)
+        #print("result: ", result)
         
         request_id = generate_request_id()
    
@@ -606,7 +606,7 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
                 "value": "$data.value",
                 "similarity_percentage": "$data.similarity_percentage",
                 "confidence": "$data.confidence",
-                "matching_condition": "$data.matching_condition",
+                "matching_decision": "$data.matching_decision",
                 "isCustom": "$data.isCustom"
             }}
         ])
@@ -625,7 +625,7 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
                 "value": doc["value"],
                 "similarity_percentage": doc["similarity_percentage"],
                 "confidence": doc["confidence"],
-                "matching_condition": doc["matching_condition"],
+                "matching_decision": doc["matching_decision"],
                 "isCustom": doc["isCustom"]
             }
             json_serializable_response.append(json_serializable_doc)
