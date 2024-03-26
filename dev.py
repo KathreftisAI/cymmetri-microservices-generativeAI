@@ -689,15 +689,47 @@ async def map_fields_to_policy(payload: Dict[str, Any]):
         return ErrorResponseModel(error=str(e), code=500, message="Exception while running mapping field.")
     
 
+
 #-------------------Api fpr storing the admin final policymap for training purpose-----------
-@app.post("/generativeaisrvc/store_data")
-async def store_data(payload: dict, tenant: str = Header(None)):
-    try:
-        policymap_colection = stored_admin_policymap(tenant)
-        policymap_colection.insert_one(payload) 
-        return {"message": "Data saved successfully"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+# @app.post("/generativeaisrvc/store_data")
+# async def store_data(payload: dict, tenant: str = Header(None)):
+#     try:
+#         request_Id = payload.get("request_id")
+#         policymap_colection = stored_admin_policymap(tenant)
+#         policymap_colection.insert_one(payload) 
+
+#         logging.debug(f"Data inserted succesfully for request_Id : {request_Id}")
+
+#         # query AI suggestion collection
+#         subset_collection = stored_policy_mapped(tenant)
+#         doc1 = subset_collection.find_one(request_Id)
+
+#         # query admin collection
+#         doc2 = policymap_colection.find_one(request_Id)
+
+#         #query global collection
+#         synonyms_collection = get_master_collection("amayaSynonymsMaster")
+
+#         if doc1 and doc2:
+#             for policy1, policy2 in zip(doc1["policyMapList"], doc2["policyMapList"]):
+#                 if policy1.get("matching_condition") == "synonyms" and policy1.get("l2_matched") != policy2.get("l2_matched"):
+
+#                     #add logic if synonyms not present add new synonyms to respective key
+#                     # Fetch and update the global collection document
+#                     l2_matched = policy1.get("l2_matched")
+#                     global_doc = synonyms_collection.find_one({"_id": l2_matched})
+#                     if global_doc:
+#                         new_score = global_doc.get("score", 1) - 0.2
+#                         synonyms_collection.update_one({"_id": l2_matched}, {"$set": {"score": new_score}})
+#                         print(f"Updated score for {l2_matched} to {new_score}")
+#         else:
+#             print("Documents with the given request_id not found in one or both collections.")
+
+
+#         #compare fields and make calculation to update the in global collection
+#         return {"message": "Data saved successfully"}
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
 
 
 if __name__ == "__main__":
