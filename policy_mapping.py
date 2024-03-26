@@ -42,20 +42,20 @@ def ErrorResponseModel(error, code, message):
 
 #--------- stored the payload as input----------
 def stored_input(tenant: str):
-    return get_collection(tenant, "schema_maker_input")
+    return get_collection(tenant, "amaya_input")
 
 #--------------stored policymap for all users----------------
 def stored_response(tenant: str):
-    return get_collection(tenant, "schema_maker_final_output")
+    return get_collection(tenant, "amaya_final_output")
 
 #------------subset policy map response--------------
 def stored_policy_mapped(tenant: str):
-    return get_collection(tenant, "schema_maker_policyMap")
+    return get_collection(tenant, "amaya_policyMap")
 
 
 #------final policymap by admin for training purpose---------
 def stored_admin_policymap(tenant: str):
-    return get_collection(tenant, "schema_maker_final_policyMap")
+    return get_collection(tenant, "amaya_final_policyMap")
 
 #----------custom attributes for appending in cymmetri list-----
 def retrieve_custom_attributes(tenant: str):
@@ -63,7 +63,7 @@ def retrieve_custom_attributes(tenant: str):
 
 #----------- score for confidence level
 def stored_score(tenant: str, appId: str):
-    score_collection = get_collection(tenant, "schema_maker_score")
+    score_collection = get_collection(tenant, "amaya_score")
 
     # Check if index exists
     #index_exists = appId in score_collection.index_information()
@@ -167,11 +167,12 @@ def get_distinct_keys_and_datatypes(json_data):
                     else:
                         datatype = get_data_type(value)
                         distinct_keys_datatypes.append({
-                            "jsonpath": new_path,
-                            "label": key,
-                            "datatype": datatype,
-                            "value": value
-                        })
+                        "jsonpath": new_path,
+                        # Construct the label using parent keys if path is nested
+                        "label": ".".join(new_path.split(".")[1:]) if "." in new_path else key,
+                        "datatype": datatype,
+                        "value": value
+                    })
             elif isinstance(obj, list):
                 if not obj:  # Check if the list is empty
                     datatype = 'ARRAY'
@@ -225,7 +226,7 @@ def get_distinct_keys_and_datatypes(json_data):
         return distinct_keys_datatypes
     except Exception as e:
         raise HTTPException(status_code=400, detail="INVALID_JSON_DATA")
-
+    
 
 #-------------------fuzzy logic matching function----------------------
 def compare_lists_with_fuzzy(l1, l2, threshold, synonyms_collection):
