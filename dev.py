@@ -726,6 +726,29 @@ async def map_fields_to_policy(payload: Dict[str, Any]):
 #             print("Documents with the given request_id not found in one or both collections.")
 
 
+
+#         if doc1 and doc2:
+#             for policy1, policy2 in zip(doc1["policyMapList"], doc2["policyMapList"]):
+#                 if policy1.get("matching_condition") == "synonyms" and policy1.get("l2_matched") != policy2.get("l2_matched"):
+#                     # Fetching attributeName from doc1
+#                     attribute_name = doc1.get("attributeName")
+                    
+#                     # Fetching l2_matched from doc1
+#                     l2_matched = policy1.get("l2_matched")
+                    
+#                     # Finding the attribute in the global collection
+#                     global_doc = synonyms_collection.find_one({"synonyms.{}".format(attribute_name): {"$exists": True}})
+                    
+#                     if global_doc:
+#                         new_score = global_doc.get("synonyms", {}).get(attribute_name, {}).get("score", 1) - 0.2
+                        
+#                         # Updating the global collection with the new score
+#                         synonyms_collection.update_one({"_id": global_doc["_id"], "synonyms.{}".format(attribute_name): {"$exists": True}},
+#                                                         {"$set": {"synonyms.{}.score".format(attribute_name): new_score}})
+                        
+#                         print(f"Updated score for {attribute_name} to {new_score}")
+
+
 #         #compare fields and make calculation to update the in global collection
 #         return {"message": "Data saved successfully"}
 #     except Exception as e:

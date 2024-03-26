@@ -9,7 +9,7 @@ from fuzzywuzzy import fuzz
 from typing import List, Union
 import uvicorn
 from typing import List, Dict, Union
-from database.connection import get_collection
+from database.connection import get_collection, get_master_collection
 from dateutil.parser import parse
 from datetime import datetime
 from datetime import date
@@ -19,6 +19,7 @@ from typing import Dict, Any, List
 from fuzzywuzzy import process
 import uvicorn
 import uuid
+from typing import Set
 
 app = FastAPI()
  
@@ -26,6 +27,7 @@ logging.basicConfig(
     level=logging.DEBUG,
     format='[%(asctime)s] %(levelname)s in %(filename)s on %(lineno)d: %(message)s',
 )
+
 
 def ResponseModel(data, message, code=200, error_code=None):
     return {
@@ -38,18 +40,28 @@ def ResponseModel(data, message, code=200, error_code=None):
 def ErrorResponseModel(error, code, message):
     return {"error": error, "code": code, "message": message}
 
+#--------- stored the payload as input----------
 def stored_input(tenant: str):
     return get_collection(tenant, "schema_maker_input")
 
+#--------------stored policymap for all users----------------
 def stored_response(tenant: str):
     return get_collection(tenant, "schema_maker_final_output")
 
+#------------subset policy map response--------------
 def stored_policy_mapped(tenant: str):
     return get_collection(tenant, "schema_maker_policyMap")
 
+
+#------final policymap by admin for training purpose---------
 def stored_admin_policymap(tenant: str):
     return get_collection(tenant, "schema_maker_final_policyMap")
 
+#----------custom attributes for appending in cymmetri list-----
+def retrieve_custom_attributes(tenant: str):
+    return get_collection(tenant, "custome_attribute_master")
+
+#----------- score for confidence level
 def stored_score(tenant: str, appId: str):
     score_collection = get_collection(tenant, "schema_maker_score")
 
@@ -60,9 +72,9 @@ def stored_score(tenant: str, appId: str):
     # if not index_exists:
     #     score_collection.create_index("appId", unique=True)
     confidence_levels = {
-        "HIGH": [70, 100],
-        "LOW": [0, 30],
-        "MEDIUM": [31, 69]
+        "HIGH": [0.7, 1],
+        "LOW": [0, 0.3],
+        "MEDIUM": [0.31, 0.69]
     }
     # Update or insert a single document for the given appId with confidence levels as fields
     score_collection.update_one(
@@ -74,6 +86,7 @@ def stored_score(tenant: str, appId: str):
     
     return score_collection
 
+#------ for preprocess purpose-----------
 def convert_string_to_list(input_str: str) -> List[str]:
     # Remove leading and trailing whitespaces, and split by ','
     return [element.strip() for element in input_str.strip('[]').split(',')]
@@ -82,6 +95,32 @@ def convert_string_to_list(input_str: str) -> List[str]:
 def generate_request_id():
     id = uuid.uuid1()
     return id.hex
+
+#--------------for adding custome attributes in cymmetri field list------------
+def add_custom_attributes_to_list(l2, l2_datatypes, tenant):
+
+    attribute_collection = retrieve_custom_attributes(tenant)
+
+    #query_result = attribute_collection.find({"attributeType": "USER", "status": True})
+    query_result = attribute_collection.find({"attributeType": "USER", "status": True})
+
+    
+    logging.debug("query executed successfully")
+    
+    custom_attributes = []  # This will track the names of custom attributes added
+
+    for result in query_result:
+        custom_attribute_name = result['name']
+        custom_attribute_type = result['provAttributeType']
+        
+        if custom_attribute_name not in l2:
+            l2.append(custom_attribute_name)
+            custom_attributes.append(custom_attribute_name)  # Add to custom_attributes set if it's new
+        
+        l2_datatypes[custom_attribute_name] = custom_attribute_type
+
+    return l2, l2_datatypes, custom_attributes
+
 
 #-----------------------------extracting the user object from response-----------------
 def extract_user_data(response):
@@ -189,101 +228,114 @@ def get_distinct_keys_and_datatypes(json_data):
 
 
 #-------------------fuzzy logic matching function----------------------
-
-# def compare_lists_with_fuzzy(l1, l2, threshold=50):
-#     logging.debug(f"comparing logic for list1 and list2")
-    
-#     matching_elements_l1 = []
-#     matching_elements_l2 = []
-#     non_matching_elements_l1 = []
-#     non_matching_elements_l2 = []
- 
-#     for element_l1 in l1:
-#         max_similarity = 0
-#         matching_element_l2 = ''
- 
-#         for element_l2 in l2:
-#             el1 = str(element_l1).lower()
-#             el2 = str(element_l2).lower()
-#             similarity = fuzz.ratio(el1, el2)
-#             if similarity > max_similarity and similarity >= threshold:
-#                 max_similarity = similarity
-#                 matching_element_l2 = element_l2
- 
-#         if matching_element_l2:
-#             matching_elements_l1.append(element_l1.strip("'"))
-#             matching_elements_l2.append(matching_element_l2.strip("'"))
-#         else:
-#             non_matching_elements_l1.append(element_l1.strip("'"))
- 
-#     non_matching_elements_l2 = [
-#         element_l2.strip("'")
-#         for element_l2 in l2
-#         if element_l2.strip("'") not in matching_elements_l2
-#     ]
- 
-#     similar_elements = []
-#     for element_l1, element_l2 in zip(matching_elements_l1, matching_elements_l2):
-#         similarity_percentage = fuzz.ratio(element_l1.lower(), element_l2.lower())
-#         similar_elements.append({
-#             "element_name_l1": element_l1,
-#             "element_name_l2": element_l2,
-#             "similarity_percentage": similarity_percentage
-#         })
- 
-#     result = {"similar_elements": similar_elements}
-#     return result
-
-
-def compare_lists_with_fuzzy(l1, l2, threshold=50):
-    logging.debug(f"comparing logic for list1 and list2")
-    
+def compare_lists_with_fuzzy(l1, l2, threshold, synonyms_collection):
     matching_elements_l1 = []
     matching_elements_l2 = []
     non_matching_elements_l1 = []
     non_matching_elements_l2 = []
     similar_elements = []
- 
+
     for element_l1 in l1:
         max_similarity = 0
         matching_element_l2 = ''
- 
+        is_synonym_match = False  # Flag to track if a synonym match is found
+
+        # Check similarity with original list (l2)
         for element_l2 in l2:
             el1 = str(element_l1).lower()
             el2 = str(element_l2).lower()
-            similarity = fuzz.ratio(el1, el2)/ 100
+            similarity = fuzz.ratio(el1, el2)
             if similarity > max_similarity and similarity >= threshold:
                 max_similarity = similarity
                 matching_element_l2 = element_l2
-                similar_elements.append({
-            "element_name_l1": el1,
-            "element_name_l2": el2,
-            "similarity_percentage": similarity
-        })
- 
+
+        if not matching_element_l2:
+            synonyms_doc = synonyms_collection.find_one()
+            if synonyms_doc:
+                threshold_synonyms = threshold / 100
+                data = synonyms_collection.aggregate([
+                    {
+                        "$project": {
+                            "synonymsArray": {"$objectToArray": "$synonyms"}
+                        }
+                    },
+                    {"$unwind": "$synonymsArray"},
+                    {
+                        "$match": {
+                            "synonymsArray.v": {
+                                "$elemMatch": {
+                                    "synonym": el1,
+                                    "score": {"$gt": threshold_synonyms}
+                                }
+                            }
+                        }
+                    },
+                    {
+                        "$project": {
+                            "_id": 0,
+                            "key": "$synonymsArray.k",
+                            "synonyms": {
+                                "$filter": {
+                                    "input": "$synonymsArray.v",
+                                    "as": "syn",
+                                    "cond": {
+                                        "$and": [
+                                            {"$eq": ["$$syn.synonym", el1]},
+                                            {"$gt": ["$$syn.score", threshold_synonyms]}
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    {"$limit": 1}
+                ])
+                if data:
+                    for document in data:
+                        matching_element_l2 = document.get('key', None)
+                        synonyms = document.get('synonyms', [])
+                        max_similarity = None
+                        if synonyms:
+                            max_similarity = max(synonyms, key=lambda x: x.get('score', 0)).get('score', None)
+                            is_synonym_match = True
+                            break
+
+                else:
+                    matching_element_l2 = None
+                    max_similarity = None
+
         if matching_element_l2:
             matching_elements_l1.append(element_l1.strip("'"))
             matching_elements_l2.append(matching_element_l2.strip("'"))
+            if is_synonym_match:
+                similar_elements.append({
+                    "element_name_l1": element_l1,
+                    "element_name_l2": matching_element_l2,
+                    "similarity_percentage": max_similarity,
+                    "matching_decision": "synonyms"
+                })
+            else:
+                similarity_percentage = fuzz.ratio(element_l1.lower(), matching_element_l2.lower()) / 100
+                similar_elements.append({
+                    "element_name_l1": element_l1,
+                    "element_name_l2": matching_element_l2,
+                    "similarity_percentage": similarity_percentage,
+                    "matching_decision": "fuzzy"
+                })
         else:
             non_matching_elements_l1.append(element_l1.strip("'"))
- 
-    # non_matching_elements_l2 = [
-    #     element_l2.strip("'")
-    #     for element_l2 in l2
-    #     if element_l2.strip("'") not in matching_elements_l2
-    # ]
- 
-    # similar_elements = []
-    # for element_l1, element_l2 in zip(matching_elements_l1, matching_elements_l2):
-    #     similarity_percentage = fuzz.ratio(element_l1.lower(), element_l2.lower())
-    #     similar_elements.append({
-    #         "element_name_l1": element_l1,
-    #         "element_name_l2": element_l2,
-    #         "similarity_percentage": similarity_percentage
-    #     })
- 
-    result = {"similar_elements": similar_elements}
+
+    non_matching_elements_l2 = [
+        element_l2.strip("'")
+        for element_l2 in l2
+        if element_l2.strip("'") not in matching_elements_l2
+    ]
+
+    result = {
+        "similar_elements": similar_elements
+    }
     return result
+
 
 
 #----------------------to get the confidence level based on schema_maker_score
@@ -307,7 +359,7 @@ def get_confidence_level(similarity_score: float, score_collection) -> str:
             elif similarity_score >= score_doc['LOW'][0] and similarity_score <= score_doc['LOW'][1]:
                 return "LOW"
             else:
-                return "Unknown"
+                return "Unknown"  # Should not happen if the schema is properly defined
         else:
             return "Unknown"  # No matching range found, return Unknown
     except Exception as e:
@@ -315,21 +367,27 @@ def get_confidence_level(similarity_score: float, score_collection) -> str:
 
 
 #----------------------generates final response---------------
-def generate_final_response(similar_elements: List[Dict[str, Union[str, int]]], response_data: List[Dict[str, str]], l2_datatypes: Dict[str, str], score_collection) -> List[Dict[str, Union[str, int, float]]]:
-    logging.debug(f"Beautifying the response for saving into the collection")
+def generate_final_response(similar_elements: List[Dict[str, Union[str, int, float]]], 
+                            response_data: List[Dict[str, str]], 
+                            l2_datatypes: Dict[str, str], 
+                            score_collection,
+                            custom_attributes: List[str]) -> List[Dict[str, Union[str, int, float]]]:
+    logging.debug("Beautifying the response for saving into the collection")
     final_response = []
+
     processed_labels = set()
     
-    # Create a dictionary for easy lookup of response_data based on labels
-    response_lookup = {data['label']: data for data in response_data}
     for element in similar_elements:
         matched_data = [data for data in response_data if data['label'] == element['element_name_l1']]
 
         if matched_data:
             for match in matched_data:
                 l2_datatype = l2_datatypes.get(element['element_name_l2'], None)
-                # Query the schema_maker_score collection to get the confidence level
                 confidence = get_confidence_level(element['similarity_percentage'], score_collection)
+                
+                # Determine if the attribute is custom based on the existence in the custom attributes set
+                is_custom = element['element_name_l2'] in custom_attributes
+
                 final_response.append({
                     'jsonPath': match['jsonpath'],
                     'attributeName': element['element_name_l1'],
@@ -338,32 +396,35 @@ def generate_final_response(similar_elements: List[Dict[str, Union[str, int]]], 
                     'l2_datatype': l2_datatype,
                     'value': match['value'],
                     'similarity_percentage': element['similarity_percentage'],
-                    'confidence': confidence  # Include confidence level
+                    'confidence': confidence,
+                    'matching_decision': element["matching_decision"],
+                    'isCustom': is_custom
                 })
-                processed_labels.add(element['element_name_l1'])  # Track processed labels
+                processed_labels.add(element['element_name_l1'])
         else:
             print(f"No matched data found for {element['element_name_l1']}")
 
-    # Handle unmatched elements from l1
+
     for data in response_data:
         if data['label'] not in processed_labels:
-            # Query the schema_maker_score collection to get the confidence level
-            confidence = get_confidence_level(0,score_collection)  # Default to 0 for unmatched elements
+            confidence = get_confidence_level(0, score_collection)
             final_response.append({
                 'jsonPath': data['jsonpath'],
                 'attributeName': data['label'],
                 'l1_datatype': data['datatype'],
-                'l2_matched': '',  # No match from l2
+                'l2_matched': '',
                 'l2_datatype': '',
-                'value': data['value'],  # Use value from response_data
-                'similarity_percentage': 0,  # Default to 0 for unmatched elements
-                'confidence': confidence  # Include confidence level
+                'value': data['value'],
+                'similarity_percentage': 0,
+                'confidence': confidence,
+                'matching_decision': "",
+                'isCustom': False  # Explicitly false since there's no l2 match
             })
     
     return final_response
 
 
-
+#--------------- for mapping the body in body populating api------------------
 def map_field_to_policy(field: str, policy_mapping: List[Dict[str, Any]]) -> str:
     matched = False
     # Perform case-insensitive exact match
@@ -389,6 +450,7 @@ def map_field_to_policy(field: str, policy_mapping: List[Dict[str, Any]]) -> str
     return field, None  # Return original field if no match is found
 
 
+#------- works on nested conditions also
 def map_nested_fields_to_policy(nested_field: Dict[str, Any], policy_mapping: List[Dict[str, Any]]) -> Dict[str, Any]:
     mapped_nested_data = {}
     for field, value in nested_field.items():
@@ -405,19 +467,20 @@ def map_nested_fields_to_policy(nested_field: Dict[str, Any], policy_mapping: Li
     return mapped_nested_data
 
 
-
-## Read header as tenant
 #----------------------api for policy mapping-----------------------------
 @app.post('/generativeaisrvc/get_policy_mapped')
-async def get_mapped(data: dict, tenant: str = Header(None)):
+async def get_mapped(data: dict, tenant: str = Header(...)):
     print("Headers:", tenant)
     logging.debug(f"API call for auto policy mapping with the application")
     try:
-        
+
+        synonyms_collection = get_master_collection("amayaSynonymsMaster")
         input_collection =  stored_input(tenant)
         output_collection =  stored_response(tenant)
         subset_collection = stored_policy_mapped(tenant)
 
+        custom_attributes = []
+        
         # Store the received response directly into the input collection
         #input_collection.insert_one(data)
 
@@ -471,11 +534,11 @@ async def get_mapped(data: dict, tenant: str = Header(None)):
                         'email': 'STRING',
                         'end_date': 'DATE',
                         'firstName': 'STRING',
-                        'login': 'INTEGER',
+                        'login': 'STRING',
                         'lastName': 'STRING',
                         'userType': 'STRING',
                         'end_date': 'DATE',
-                        'login': 'INTEGER',
+                        'login': 'STRING    ',
                         'userType': 'STRING',
                         'dateOfBirth': 'DATE',
                         'endDate': 'DATE',
@@ -487,24 +550,32 @@ async def get_mapped(data: dict, tenant: str = Header(None)):
                         'landline': 'STRING'
                     }
         
+        l2, l2_datatypes, custom_attributes = add_custom_attributes_to_list(l2, l2_datatypes, tenant)
+
+        print("list2: ",l2)
+
+        #print("custom_attributes: ", custom_attributes)
+        
         if isinstance(l2, str):
             l2_list = convert_string_to_list(l2)
         else:
             l2_list = l2
 
         threshold = 60
-
-        result = compare_lists_with_fuzzy(l1_list, l2_list, threshold)
-        print("result: ",result)
-
         appId = data.get("appId")
 
-        request_id = generate_request_id()
+        #--- Inserting the synonyms_dict for appId--------
+        #synonyms_stored_collection = stored_synonyms_dict(tenant, appId, synonyms_dict)
 
+        result = compare_lists_with_fuzzy(l1_list, l2_list, threshold, synonyms_collection)
+        #print("result: ", result)
         
+        request_id = generate_request_id()
+   
         score_collection = stored_score(tenant, appId)
 
-        final_response = generate_final_response(result['similar_elements'], response_data, l2_datatypes, score_collection)
+        final_response = generate_final_response(result['similar_elements'], response_data, l2_datatypes, score_collection, custom_attributes)
+        #print("final response: ",final_response)
         final_response_dict = {"final_response": final_response}
 
         # Assuming 'appId' is present in the received response
@@ -534,7 +605,9 @@ async def get_mapped(data: dict, tenant: str = Header(None)):
                 "l2_datatype": "$data.l2_datatype",
                 "value": "$data.value",
                 "similarity_percentage": "$data.similarity_percentage",
-                "confidence": "$data.confidence"
+                "confidence": "$data.confidence",
+                "matching_decision": "$data.matching_decision",
+                "isCustom": "$data.isCustom"
             }}
         ])
 
@@ -551,7 +624,9 @@ async def get_mapped(data: dict, tenant: str = Header(None)):
                 "l2_datatype": doc["l2_datatype"],
                 "value": doc["value"],
                 "similarity_percentage": doc["similarity_percentage"],
-                "confidence": doc["confidence"]
+                "confidence": doc["confidence"],
+                "matching_decision": doc["matching_decision"],
+                "isCustom": doc["isCustom"]
             }
             json_serializable_response.append(json_serializable_doc)
 
@@ -559,7 +634,7 @@ async def get_mapped(data: dict, tenant: str = Header(None)):
         aggregated_data = {
             "appId": appId,
             "request_id": request_id,
-            "subset_data": subset_response_data
+            "policyMapList": subset_response_data
         }
 
         subset_collection.insert_one(aggregated_data)
@@ -580,7 +655,7 @@ async def get_mapped(data: dict, tenant: str = Header(None)):
     except Exception as e:
         return ErrorResponseModel(error=str(e), code=500, message="Exception while running policy mappping.")
     
-
+#------- Api for body populating----------
 @app.post("/generativeaisrvc/map_fields_to_policy/")
 async def map_fields_to_policy(payload: Dict[str, Any]):
     try:
@@ -614,14 +689,70 @@ async def map_fields_to_policy(payload: Dict[str, Any]):
         return ErrorResponseModel(error=str(e), code=500, message="Exception while running mapping field.")
     
 
-@app.post("/generativeaisrvc/store_data")
-async def store_data(payload: dict, tenant: str = Header(None)):
-    try:
-        policymap_colection = stored_admin_policymap(tenant)
-        policymap_colection.insert_one(payload) 
-        return {"message": "Data saved successfully"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+
+#-------------------Api fpr storing the admin final policymap for training purpose-----------
+# @app.post("/generativeaisrvc/store_data")
+# async def store_data(payload: dict, tenant: str = Header(None)):
+#     try:
+#         request_Id = payload.get("request_id")
+#         policymap_colection = stored_admin_policymap(tenant)
+#         policymap_colection.insert_one(payload) 
+
+#         logging.debug(f"Data inserted succesfully for request_Id : {request_Id}")
+
+#         # query AI suggestion collection
+#         subset_collection = stored_policy_mapped(tenant)
+#         doc1 = subset_collection.find_one(request_Id)
+
+#         # query admin collection
+#         doc2 = policymap_colection.find_one(request_Id)
+
+#         #query global collection
+#         synonyms_collection = get_master_collection("amayaSynonymsMaster")
+
+#         if doc1 and doc2:
+#             for policy1, policy2 in zip(doc1["policyMapList"], doc2["policyMapList"]):
+#                 if policy1.get("matching_condition") == "synonyms" and policy1.get("l2_matched") != policy2.get("l2_matched"):
+
+#                     #add logic if synonyms not present add new synonyms to respective key
+#                     # Fetch and update the global collection document
+#                     l2_matched = policy1.get("l2_matched")
+#                     global_doc = synonyms_collection.find_one({"_id": l2_matched})
+#                     if global_doc:
+#                         new_score = global_doc.get("score", 1) - 0.2
+#                         synonyms_collection.update_one({"_id": l2_matched}, {"$set": {"score": new_score}})
+#                         print(f"Updated score for {l2_matched} to {new_score}")
+#         else:
+#             print("Documents with the given request_id not found in one or both collections.")
+
+
+
+#         if doc1 and doc2:
+#             for policy1, policy2 in zip(doc1["policyMapList"], doc2["policyMapList"]):
+#                 if policy1.get("matching_condition") == "synonyms" and policy1.get("l2_matched") != policy2.get("l2_matched"):
+#                     # Fetching attributeName from doc1
+#                     attribute_name = doc1.get("attributeName")
+                    
+#                     # Fetching l2_matched from doc1
+#                     l2_matched = policy1.get("l2_matched")
+                    
+#                     # Finding the attribute in the global collection
+#                     global_doc = synonyms_collection.find_one({"synonyms.{}".format(attribute_name): {"$exists": True}})
+                    
+#                     if global_doc:
+#                         new_score = global_doc.get("synonyms", {}).get(attribute_name, {}).get("score", 1) - 0.2
+                        
+#                         # Updating the global collection with the new score
+#                         synonyms_collection.update_one({"_id": global_doc["_id"], "synonyms.{}".format(attribute_name): {"$exists": True}},
+#                                                         {"$set": {"synonyms.{}.score".format(attribute_name): new_score}})
+                        
+#                         print(f"Updated score for {attribute_name} to {new_score}")
+
+
+#         #compare fields and make calculation to update the in global collection
+#         return {"message": "Data saved successfully"}
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
 
 
 if __name__ == "__main__":
