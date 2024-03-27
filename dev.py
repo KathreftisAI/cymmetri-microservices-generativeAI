@@ -728,7 +728,6 @@ async def store_data(payload: dict, tenant: str = Header(None)):
                     print("l2_matched: ",l2_matched)
                     
                     # Finding the attribute in the global collection
-
                     pipeline = [
                         {
                             "$match": {
@@ -754,32 +753,50 @@ async def store_data(payload: dict, tenant: str = Header(None)):
 
                     global_docs = synonyms_collection.aggregate(pipeline)
 
-                    for global_doc in global_docs:
-                        synonyms = global_doc.get("synonyms", {})
-                        if synonyms:
-                            # Accessing the score and updating it
-                            new_score = synonyms.get(attribute_name, {}).get("score",1) - 0.2
-                            # Updating the global collection with the new score
-                            synonyms_collection.update_one(
-                                {
-                                    f"synonyms.{l2_matched}.synonym": str(attribute_name)
-                                },
-                                {
-                                    "$set": {
-                                        f"synonyms.{l2_matched}.$[elem].score": float(new_score)
-                                    }
-                                },
-                                array_filters=[
-                                    {
-                                        "elem.synonym": str(attribute_name)
-                                    }
-                                ],
-                                upsert= True
-                            )
+                    if not global_docs:  # If no documents found, insert a new document
+                        new_synonym = {
+                            "synonym": attribute_name,
+                            "score": 1
+                        }
+                        synonyms_collection.update_one(
+                            {},
+                            {
+                                "$addToSet": {
+                                    f"synonyms.{l2_matched}": new_synonym
+                                }
+                            },
+                            upsert=True
+                        )
+                        print(f"Inserted new synonym: {new_synonym}")
 
-                            logging.debug(f"Updated score for {attribute_name} to {new_score}")
-                        else:
-                            print("No 'synonyms' found in the document.")
+                    else:
+                        for global_doc in global_docs:
+                            synonyms = global_doc.get("synonyms", {})
+                            if synonyms:
+                                # Accessing the score and updating it
+                                score = global_doc['synonyms']['score']
+                                new_score = score - 0.2
+                                # Updating the global collection with the new score
+                                synonyms_collection.update_one(
+                                    {
+                                        f"synonyms.{l2_matched}.synonym": str(attribute_name)
+                                    },
+                                    {
+                                        "$set": {
+                                            f"synonyms.{l2_matched}.$[elem].score": float(new_score)
+                                        }
+                                    },
+                                    array_filters=[
+                                        {
+                                            "elem.synonym": str(attribute_name)
+                                        }
+                                    ],
+                                    upsert= True
+                                )
+
+                                logging.debug(f"Updated score for {attribute_name} to {new_score}")
+                            else:
+                                print("No 'synonyms' found in the document.")
                 
                 elif policy1.get("matching_decision") == "synonyms" and policy2.get("matching_decision") == "synonyms" and policy1.get("l2_matched") == policy2.get("l2_matched"):
                     attribute_name = policy1.get("attributeName").lower()
@@ -790,7 +807,6 @@ async def store_data(payload: dict, tenant: str = Header(None)):
                     print("l2_matched: ",l2_matched)
                     
                     # Finding the attribute in the global collection
-
                     pipeline = [
                         {
                             "$match": {
@@ -817,10 +833,17 @@ async def store_data(payload: dict, tenant: str = Header(None)):
                     global_docs = synonyms_collection.aggregate(pipeline)
 
                     for global_doc in global_docs:
+
                         synonyms = global_doc.get("synonyms", {})
                         if synonyms:
-                            # Accessing the score and updating it
-                            new_score = synonyms.get(attribute_name, {}).get("score",1) - 0.2
+
+                            score = global_doc['synonyms']['score']
+
+                            if score is not None and score == 1:
+                                new_score = 1  # If the current score is already 1, keep it unchanged
+                            else:
+                                new_score = score + 0.2
+
                             # Updating the global collection with the new score
                             synonyms_collection.update_one(
                                 {
