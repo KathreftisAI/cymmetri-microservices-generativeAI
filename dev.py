@@ -90,6 +90,11 @@ def convert_string_to_list(input_str: str) -> List[str]:
     # Remove leading and trailing whitespaces, and split by ','
     return [element.strip() for element in input_str.strip('[]').split(',')]
 
+#--------------for preprocess purpose
+def remove_underscores_from_set(input_set):
+    return set(element.replace('_', '') for element in input_set)
+
+
 #--------generate request_id-----------
 def generate_request_id():
     id = uuid.uuid1()
@@ -140,7 +145,6 @@ def extract_user_data(response):
             if isinstance(obj, dict):
                 if is_user_data(obj):
                     # Convert keys in the user data to lowercase or handle as needed
-                    # This step might need adjustments based on how you want to use the extracted data
                     user_data_list.append({original_keys.get(k.lower(), k): v for k, v in obj.items()})
                 else:
                     for key, value in obj.items():
@@ -154,7 +158,7 @@ def extract_user_data(response):
 
         return user_data_list
     except Exception as e:
-        logging.error(f"Error extracting user data: {e}")  # It's good to log the error for debugging purposes
+        logging.error(f"Error extracting user data: {e}")  
         raise HTTPException(status_code=400, detail="INVALID_JSON_DATA")
     
 #---------------------------extracting keys, datatype, label and jsonpath----------------
@@ -453,7 +457,7 @@ def map_field_to_policy(field: str, policy_mapping: List[Dict[str, Any]]) -> str
     
     if not matched:
         print(f"No match found for '{field}'")
-    return field, None  # Return original field if no match is found
+    return field, None  
 
 
 #------- works on nested conditions also
@@ -500,16 +504,22 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
 
         # Validate the format of 'payload'
         if not isinstance(data['payload'], dict):
-            raise HTTPException(status_code=400, detail="'payload' must be a dictionary")
-        
+            if isinstance(data['payload'], list):
+                # Convert list of dictionaries to a single dictionary
+                converted_payload = {}
+                for item in data['payload']:
+                    for key, value in item.items():
+                        converted_payload[key] = value
+                data['payload'] = converted_payload
+            else:
+                raise HTTPException(status_code=400, detail="'payload' must be a dictionary or list")        
  
         json_data = data.get('payload')
 
         #print("json data is {}", json_data)
-        #End of changes by Abhishek
 
         json_data_ = extract_user_data(json_data)
-        print("json_data: ",json_data_)
+        #print("json_data: ",json_data_)
 
         response_data = get_distinct_keys_and_datatypes(json_data_)
         #response_data=list(response_data.values())
@@ -520,10 +530,12 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
 
         if isinstance(l1, str):
             l1_list = set(convert_string_to_list(l1))
-            print("list1: ",l1_list)
+            print("list1 as str: ",l1_list)
         else:
-            l1_list = set(l1)
-            print("list1: ",l1_list)
+            l1_list = remove_underscores_from_set(l1)
+            l1_list = set(l1_list)
+            print("list1 as set: ",l1_list)
+
 
 
         l2 = ['department', 'employeeId', 'designation', 'appUpdatedDate', 'displayName', 'mobile', 'country', 'city', 'email', 'end_date', 'firstName', 'login', 'lastName', 'userType', 'dateOfBirth', 'endDate', 'startDate', 'password', 'status', 'profilePicture', 'appUserId', 'landline']
