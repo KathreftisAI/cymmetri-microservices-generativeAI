@@ -52,7 +52,6 @@ def stored_response(tenant: str):
 def stored_policy_mapped(tenant: str):
     return get_collection(tenant, "amaya_policyMap")
 
-
 #------final policymap by admin for training purpose---------
 def stored_admin_policymap(tenant: str):
     return get_collection(tenant, "amaya_final_policyMap")
@@ -125,31 +124,37 @@ def add_custom_attributes_to_list(l2, l2_datatypes, tenant):
 #-----------------------------extracting the user object from response-----------------
 def extract_user_data(response):
     try:
-        logging.debug(f"extracting the users from the nested json")
+        logging.debug("Extracting the users from the nested json")
         user_data_list = []
 
         def is_user_data(obj):
-            # Check if object contains at least one of the common user data keys
-            user_keys = {'displayName', 'givenName' 'email', 'id', 'DateOfBirth'}
-            return any(key in obj for key in user_keys)
+            # Convert keys in the object to lowercase for case-insensitive comparison
+            lower_case_obj_keys = {key.lower() for key in obj.keys()}
+            # Define user data keys in lowercase
+            user_keys = {'displayname', 'givenname', 'email', 'id', 'dateofbirth', 'mobile', 'firstname'}
+            # Check if object contains at least one of the common user data keys, ignoring case
+            return any(key in lower_case_obj_keys for key in user_keys)
 
-        def traverse(obj):
+        def traverse(obj, original_keys=None):
             # Recursively traverse the JSON object
-            nonlocal user_data_list
             if isinstance(obj, dict):
                 if is_user_data(obj):
-                    user_data_list.append(obj)
+                    # Convert keys in the user data to lowercase or handle as needed
+                    # This step might need adjustments based on how you want to use the extracted data
+                    user_data_list.append({original_keys.get(k.lower(), k): v for k, v in obj.items()})
                 else:
-                    for value in obj.values():
-                        traverse(value)
+                    for key, value in obj.items():
+                        # Maintain original keys for nested dictionaries
+                        traverse(value, {**original_keys, **{key.lower(): key}})
             elif isinstance(obj, list):
                 for item in obj:
-                    traverse(item)
+                    traverse(item, original_keys)
 
-        traverse(response)
+        traverse(response, {})
 
         return user_data_list
     except Exception as e:
+        logging.error(f"Error extracting user data: {e}")  # It's good to log the error for debugging purposes
         raise HTTPException(status_code=400, detail="INVALID_JSON_DATA")
     
 #---------------------------extracting keys, datatype, label and jsonpath----------------
@@ -504,7 +509,7 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
         #End of changes by Abhishek
 
         json_data_ = extract_user_data(json_data)
-        #print("json_data: ",json_data_)
+        print("json_data: ",json_data_)
 
         response_data = get_distinct_keys_and_datatypes(json_data_)
         #response_data=list(response_data.values())
@@ -657,7 +662,7 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
         return ErrorResponseModel(error=str(e), code=500, message="Exception while running policy mappping.")
     
 #------- Api for body populating----------
-@app.post("/generativeaisrvc/map_fields_to_policy/")
+@app.post("/generativeaisrvc/map_fields_to_policy")
 async def map_fields_to_policy(payload: Dict[str, Any]):
     try:
         body = payload.get("body")
@@ -692,69 +697,209 @@ async def map_fields_to_policy(payload: Dict[str, Any]):
 
 
 #-------------------Api fpr storing the admin final policymap for training purpose-----------
-# @app.post("/generativeaisrvc/store_data")
-# async def store_data(payload: dict, tenant: str = Header(None)):
+@app.post("/generativeaisrvc/store_data")
+async def store_data(payload: dict, tenant: str = Header(None)):
+    print("tenant: ", tenant)
+    try:
+        request_Id = payload.get("request_id")
+        policymap_collection = stored_admin_policymap(tenant)
+        policymap_collection.insert_one(payload) 
+
+        logging.debug(f"Data inserted succesfully for request_Id : {request_Id}")
+
+        # query AI suggestion collection
+        subset_collection = stored_policy_mapped(tenant)
+        doc1 = subset_collection.find_one({"request_id":request_Id})
+
+        # query admin collection
+        doc2 = policymap_collection.find_one({"request_id":request_Id})
+
+        #query global collection
+        synonyms_collection = get_master_collection("amayaSynonymsMaster")
+
+        if doc1 and doc2:
+            # print("doc1: ",doc1)
+            # print("doc2: ",doc2)
+            for policy1, policy2 in zip(doc1["policyMapList"], doc2["policyMapList"]):
+                # print("policy1: ",policy1)
+                # print("policy2: ",policy2)
+                
+                if policy1.get("matching_decision") == "synonyms" and policy2.get("matching_decision") == "synonyms" and policy1.get("l2_matched") != policy2.get("l2_matched"):
+                    #Fetching attributeName from doc1
+                    attribute_name = policy1.get("attributeName").lower()
+                    print("attribute_name: ",attribute_name)
+                    
+                    # Fetching l2_matched from doc1
+                    l2_matched = policy1.get("l2_matched")
+                    print("l2_matched: ",l2_matched)
+                    
+                    # Finding the attribute in the global collection
+                    pipeline = [
+                        {
+                            "$match": {
+                                f"synonyms.{l2_matched}.synonym": attribute_name
+                            }
+                        },
+                        {
+                            "$project": {
+                                "_id": 0,
+                                "synonyms": {
+                                    "$filter": {
+                                        "input": f"$synonyms.{l2_matched}",
+                                        "as": "item",
+                                        "cond": { "$eq": ["$$item.synonym", attribute_name] }
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            "$unwind": "$synonyms"
+                        }
+                    ]
+
+                    global_docs = synonyms_collection.aggregate(pipeline)
+
+                    if not global_docs:  # If no documents found, insert a new document
+                        new_synonym = {
+                            "synonym": attribute_name,
+                            "score": 1
+                        }
+                        synonyms_collection.update_one(
+                            {},
+                            {
+                                "$addToSet": {
+                                    f"synonyms.{l2_matched}": new_synonym
+                                }
+                            },
+                            upsert=True
+                        )
+                        print(f"Inserted new synonym: {new_synonym}")
+
+                    else:
+                        for global_doc in global_docs:
+                            synonyms = global_doc.get("synonyms", {})
+                            if synonyms:
+                                # Accessing the score and updating it
+                                score = global_doc['synonyms']['score']
+                                new_score = score - 0.2
+                                # Updating the global collection with the new score
+                                synonyms_collection.update_one(
+                                    {
+                                        f"synonyms.{l2_matched}.synonym": str(attribute_name)
+                                    },
+                                    {
+                                        "$set": {
+                                            f"synonyms.{l2_matched}.$[elem].score": float(new_score)
+                                        }
+                                    },
+                                    array_filters=[
+                                        {
+                                            "elem.synonym": str(attribute_name)
+                                        }
+                                    ],
+                                    upsert= True
+                                )
+
+                                logging.debug(f"Updated score for {attribute_name} to {new_score}")
+                            else:
+                                print("No 'synonyms' found in the document.")
+                
+                elif policy1.get("matching_decision") == "synonyms" and policy2.get("matching_decision") == "synonyms" and policy1.get("l2_matched") == policy2.get("l2_matched"):
+                    attribute_name = policy1.get("attributeName").lower()
+                    print("attribute_name: ",attribute_name)
+                    
+                    # Fetching l2_matched from doc1
+                    l2_matched = policy1.get("l2_matched")
+                    print("l2_matched: ",l2_matched)
+                    
+                    # Finding the attribute in the global collection
+                    pipeline = [
+                        {
+                            "$match": {
+                                f"synonyms.{l2_matched}.synonym": attribute_name
+                            }
+                        },
+                        {
+                            "$project": {
+                                "_id": 0,
+                                "synonyms": {
+                                    "$filter": {
+                                        "input": f"$synonyms.{l2_matched}",
+                                        "as": "item",
+                                        "cond": { "$eq": ["$$item.synonym", attribute_name] }
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            "$unwind": "$synonyms"
+                        }
+                    ]
+
+                    global_docs = synonyms_collection.aggregate(pipeline)
+
+                    for global_doc in global_docs:
+
+                        synonyms = global_doc.get("synonyms", {})
+                        if synonyms:
+
+                            score = global_doc['synonyms']['score']
+
+                            if score is not None and score == 1:
+                                new_score = 1  # If the current score is already 1, keep it unchanged
+                            else:
+                                new_score = score + 0.2
+
+                            # Updating the global collection with the new score
+                            synonyms_collection.update_one(
+                                {
+                                    f"synonyms.{l2_matched}.synonym": str(attribute_name)
+                                },
+                                {
+                                    "$set": {
+                                        f"synonyms.{l2_matched}.$[elem].score": float(new_score)
+                                    }
+                                },
+                                array_filters=[
+                                    {
+                                        "elem.synonym": str(attribute_name)
+                                    }
+                                ],
+                                upsert= True
+                            )
+
+                            logging.debug(f"Updated score for {attribute_name} to {new_score}")
+                        else:
+                            print("No 'synonyms' found in the document.")
+
+                else:
+                    print("failed")
+
+        #compare fields and make calculation to update the in global collection
+        return {"message": "Data saved successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+#------------ API for mapping roles-------------
+# @app.post("/generativeaisrvc/map_fields_to_roles/")
+# async def map_fields_to_roles(payload: Dict[str, Any]):
 #     try:
-#         request_Id = payload.get("request_id")
-#         policymap_colection = stored_admin_policymap(tenant)
-#         policymap_colection.insert_one(payload) 
+#         body = payload.get("body")
+#         policy_mapping = payload.get("policyMapping")
 
-#         logging.debug(f"Data inserted succesfully for request_Id : {request_Id}")
-
-#         # query AI suggestion collection
-#         subset_collection = stored_policy_mapped(tenant)
-#         doc1 = subset_collection.find_one(request_Id)
-
-#         # query admin collection
-#         doc2 = policymap_colection.find_one(request_Id)
-
-#         #query global collection
-#         synonyms_collection = get_master_collection("amayaSynonymsMaster")
-
-#         if doc1 and doc2:
-#             for policy1, policy2 in zip(doc1["policyMapList"], doc2["policyMapList"]):
-#                 if policy1.get("matching_condition") == "synonyms" and policy1.get("l2_matched") != policy2.get("l2_matched"):
-
-#                     #add logic if synonyms not present add new synonyms to respective key
-#                     # Fetch and update the global collection document
-#                     l2_matched = policy1.get("l2_matched")
-#                     global_doc = synonyms_collection.find_one({"_id": l2_matched})
-#                     if global_doc:
-#                         new_score = global_doc.get("score", 1) - 0.2
-#                         synonyms_collection.update_one({"_id": l2_matched}, {"$set": {"score": new_score}})
-#                         print(f"Updated score for {l2_matched} to {new_score}")
-#         else:
-#             print("Documents with the given request_id not found in one or both collections.")
-
-
-
-#         if doc1 and doc2:
-#             for policy1, policy2 in zip(doc1["policyMapList"], doc2["policyMapList"]):
-#                 if policy1.get("matching_condition") == "synonyms" and policy1.get("l2_matched") != policy2.get("l2_matched"):
-#                     # Fetching attributeName from doc1
-#                     attribute_name = doc1.get("attributeName")
-                    
-#                     # Fetching l2_matched from doc1
-#                     l2_matched = policy1.get("l2_matched")
-                    
-#                     # Finding the attribute in the global collection
-#                     global_doc = synonyms_collection.find_one({"synonyms.{}".format(attribute_name): {"$exists": True}})
-                    
-#                     if global_doc:
-#                         new_score = global_doc.get("synonyms", {}).get(attribute_name, {}).get("score", 1) - 0.2
-                        
-#                         # Updating the global collection with the new score
-#                         synonyms_collection.update_one({"_id": global_doc["_id"], "synonyms.{}".format(attribute_name): {"$exists": True}},
-#                                                         {"$set": {"synonyms.{}.score".format(attribute_name): new_score}})
-                        
-#                         print(f"Updated score for {attribute_name} to {new_score}")
-
-
-#         #compare fields and make calculation to update the in global collection
-#         return {"message": "Data saved successfully"}
+#         if not body:
+#             raise HTTPException(status_code=400, detail="body empty")
+#         elif not policy_mapping:
+#             raise HTTPException(status_code=400, detail="policy_mapping empty")
+        
+#     except HTTPException:
+#         raise
 #     except Exception as e:
-#         raise HTTPException(status_code=500, detail=str(e))
+#         return ErrorResponseModel(error=str(e), code=500, message="Exception while running mapping field.")
 
+ 
 
 if __name__ == "__main__":
+
     uvicorn.run(app, host="0.0.0.0", port=5000)
