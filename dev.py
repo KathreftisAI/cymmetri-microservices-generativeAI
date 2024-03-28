@@ -544,7 +544,7 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
                         'lastName': 'STRING',
                         'userType': 'STRING',
                         'end_date': 'DATE',
-                        'login': 'STRING    ',
+                        'login': 'STRING',
                         'userType': 'STRING',
                         'dateOfBirth': 'DATE',
                         'endDate': 'DATE',
@@ -569,9 +569,6 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
 
         threshold = 60
         appId = data.get("appId")
-
-        #--- Inserting the synonyms_dict for appId--------
-        #synonyms_stored_collection = stored_synonyms_dict(tenant, appId, synonyms_dict)
 
         result = compare_lists_with_fuzzy(l1_list, l2_list, threshold, synonyms_collection)
         #print("result: ", result)
@@ -662,7 +659,7 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
         return ErrorResponseModel(error=str(e), code=500, message="Exception while running policy mappping.")
     
 #------- Api for body populating----------
-@app.post("/generativeaisrvc/map_fields_to_policy/")
+@app.post("/generativeaisrvc/map_fields_to_policy")
 async def map_fields_to_policy(payload: Dict[str, Any]):
     try:
         body = payload.get("body")
@@ -882,7 +879,7 @@ async def store_data(payload: dict, tenant: str = Header(None)):
 
 
 #------------ API for mapping roles-------------
-# @app.post("/generativeaisrvc/map_fields_to_roles/")
+# @app.post("/generativeaisrvc/map_fields_to_roles")
 # async def map_fields_to_roles(payload: Dict[str, Any]):
 #     try:
 #         body = payload.get("body")
