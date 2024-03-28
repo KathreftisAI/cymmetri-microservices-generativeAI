@@ -544,7 +544,7 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
                         'lastName': 'STRING',
                         'userType': 'STRING',
                         'end_date': 'DATE',
-                        'login': 'STRING    ',
+                        'login': 'STRING',
                         'userType': 'STRING',
                         'dateOfBirth': 'DATE',
                         'endDate': 'DATE',
