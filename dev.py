@@ -124,31 +124,37 @@ def add_custom_attributes_to_list(l2, l2_datatypes, tenant):
 #-----------------------------extracting the user object from response-----------------
 def extract_user_data(response):
     try:
-        logging.debug(f"extracting the users from the nested json")
+        logging.debug("Extracting the users from the nested json")
         user_data_list = []
 
         def is_user_data(obj):
-            # Check if object contains at least one of the common user data keys
-            user_keys = {'displayName', 'givenName' 'email', 'id', 'DateOfBirth'}
-            return any(key in obj for key in user_keys)
+            # Convert keys in the object to lowercase for case-insensitive comparison
+            lower_case_obj_keys = {key.lower() for key in obj.keys()}
+            # Define user data keys in lowercase
+            user_keys = {'displayname', 'givenname', 'email', 'id', 'dateofbirth', 'mobile', 'firstname'}
+            # Check if object contains at least one of the common user data keys, ignoring case
+            return any(key in lower_case_obj_keys for key in user_keys)
 
-        def traverse(obj):
+        def traverse(obj, original_keys=None):
             # Recursively traverse the JSON object
-            nonlocal user_data_list
             if isinstance(obj, dict):
                 if is_user_data(obj):
-                    user_data_list.append(obj)
+                    # Convert keys in the user data to lowercase or handle as needed
+                    # This step might need adjustments based on how you want to use the extracted data
+                    user_data_list.append({original_keys.get(k.lower(), k): v for k, v in obj.items()})
                 else:
-                    for value in obj.values():
-                        traverse(value)
+                    for key, value in obj.items():
+                        # Maintain original keys for nested dictionaries
+                        traverse(value, {**original_keys, **{key.lower(): key}})
             elif isinstance(obj, list):
                 for item in obj:
-                    traverse(item)
+                    traverse(item, original_keys)
 
-        traverse(response)
+        traverse(response, {})
 
         return user_data_list
     except Exception as e:
+        logging.error(f"Error extracting user data: {e}")  # It's good to log the error for debugging purposes
         raise HTTPException(status_code=400, detail="INVALID_JSON_DATA")
     
 #---------------------------extracting keys, datatype, label and jsonpath----------------
@@ -503,7 +509,7 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
         #End of changes by Abhishek
 
         json_data_ = extract_user_data(json_data)
-        #print("json_data: ",json_data_)
+        print("json_data: ",json_data_)
 
         response_data = get_distinct_keys_and_datatypes(json_data_)
         #response_data=list(response_data.values())
