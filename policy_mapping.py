@@ -94,7 +94,6 @@ def convert_string_to_list(input_str: str) -> List[str]:
 def remove_underscores_from_set(input_set):
     return set(element.replace('_', '') for element in input_set)
 
-
 #--------generate request_id-----------
 def generate_request_id():
     id = uuid.uuid1()
@@ -532,8 +531,9 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
             l1_list = set(convert_string_to_list(l1))
             print("list1 as str: ",l1_list)
         else:
-            l1_list = remove_underscores_from_set(l1)
-            l1_list = set(l1_list)
+            #l1_list = remove_underscores_from_set(l1)
+            l1_list = set(l1)
+            #l1_list = set(l1_list)
             print("list1 as set: ",l1_list)
 
 
