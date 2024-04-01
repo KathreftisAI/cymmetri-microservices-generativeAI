@@ -737,13 +737,18 @@ async def store_data(payload: dict, tenant: str = Header(None)):
                 # print("policy2: ",policy2)
                 
                 if policy1.get("matching_decision") == "synonyms" and policy2.get("matching_decision") == "synonyms" and policy1.get("l2_matched") != policy2.get("l2_matched"):
+                    logging.debug(f" checking and updating where policy1 and policy2 are not equal")
                     #Fetching attributeName from doc1
                     attribute_name = policy1.get("attributeName").lower()
-                    logging.debug("attribute_name: ",attribute_name)
+                    print("attribute_name: ",attribute_name)
+                    #logging.debug("attribute_name: ",attribute_name)
+                    #logging.debug("attribute_name: %s", attribute_name)
                     
                     # Fetching l2_matched from doc1
                     l2_matched = policy1.get("l2_matched")
-                    logging.debug("l2_matched: ",l2_matched)
+                    print("l2_matched: ",l2_matched)
+                    #logging.debug("l2_matched: ",l2_matched)
+                    #logging.debug("l2_matched: %s", l2_matched)
                     
                     # Finding the attribute in the global collection
                     pipeline = [
@@ -817,12 +822,15 @@ async def store_data(payload: dict, tenant: str = Header(None)):
                                 logging.debug("No 'synonyms' found in the document.")
                 
                 elif policy1.get("matching_decision") == "synonyms" and policy2.get("matching_decision") == "synonyms" and policy1.get("l2_matched") == policy2.get("l2_matched"):
+                    logging.debug(f" checking and updating where policy1 and policy2 are equal")
                     attribute_name = policy1.get("attributeName").lower()
-                    logging.debug("attribute_name: ",attribute_name)
+                    print("attribute_name: ",attribute_name)
+                    #logging.debug("attribute_name: ",attribute_name)
                     
                     # Fetching l2_matched from doc1
                     l2_matched = policy1.get("l2_matched")
-                    logging.debug("l2_matched: ",l2_matched)
+                    print("l2_matched: ", l2_matched)
+                    #logging.debug("l2_matched: ",l2_matched)
                     
                     # Finding the attribute in the global collection
                     pipeline = [
@@ -885,7 +893,7 @@ async def store_data(payload: dict, tenant: str = Header(None)):
                             logging.debug("No 'synonyms' found in the document.")
 
                 else:
-                    logging.debug("failed")
+                    logging.debug("no need to analyze and changed")
 
         #compare fields and make calculation to update the in global collection
         return {"message": "Data saved successfully"}
