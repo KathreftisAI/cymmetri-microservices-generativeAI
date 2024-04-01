@@ -411,7 +411,7 @@ def generate_final_response(similar_elements: List[Dict[str, Union[str, int, flo
                 })
                 processed_labels.add(element['element_name_l1'])
         else:
-            print(f"No matched data found for {element['element_name_l1']}")
+            logging.debug(f"No matched data found for {element['element_name_l1']}")
 
 
     for data in response_data:
@@ -442,7 +442,7 @@ def map_field_to_policy(field: str, policy_mapping: List[Dict[str, Any]]) -> str
         internal_field = map_entry["internal"]
         if external_field.lower() == field.lower():
             matched = True
-            print(f"Exact match found: '{field}' -> '{external_field}'")
+            logging.debug(f"Exact match found: '{field}' -> '{external_field}'")
             return external_field, f"${{{external_field}}}"  # Use placeholder syntax
     
     # Perform fuzzy matching if no direct match is found
@@ -451,11 +451,11 @@ def map_field_to_policy(field: str, policy_mapping: List[Dict[str, Any]]) -> str
         for map_entry in policy_mapping:
             if map_entry["internal"].lower() == best_match:
                 matched = True
-                print(f"Fuzzy match found: '{field}' -> '{map_entry['external']}' (Best match: '{best_match}')")
+                logging.debug(f"Fuzzy match found: '{field}' -> '{map_entry['external']}' (Best match: '{best_match}')")
                 return map_entry['external'], f"${{{map_entry['external']}}}"  # Use placeholder syntax
     
     if not matched:
-        print(f"No match found for '{field}'")
+        logging.debug(f"No match found for '{field}'")
     return field, None  
 
 
@@ -479,7 +479,6 @@ def map_nested_fields_to_policy(nested_field: Dict[str, Any], policy_mapping: Li
 #----------------------api for policy mapping-----------------------------
 @app.post('/generativeaisrvc/get_policy_mapped')
 async def get_mapped(data: dict, tenant: str = Header(...)):
-    print("Headers:", tenant)
     logging.debug(f"API call for auto policy mapping with the application")
     try:
 
@@ -518,151 +517,156 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
         #print("json data is {}", json_data)
 
         json_data_ = extract_user_data(json_data)
-        #print("json_data: ",json_data_)
 
-        response_data = get_distinct_keys_and_datatypes(json_data_)
-        #response_data=list(response_data.values())
-        #print("response_data:", response_data)
+        if json_data_:
+            logging.info(f" Successfully extract the json data from response")
 
-
-        l1 = [item['label'] for item in response_data]
-
-        if isinstance(l1, str):
-            l1_list = set(convert_string_to_list(l1))
-            print("list1 as str: ",l1_list)
-        else:
-            #l1_list = remove_underscores_from_set(l1)
-            l1_list = set(l1)
-            #l1_list = set(l1_list)
-            print("list1 as set: ",l1_list)
+            response_data = get_distinct_keys_and_datatypes(json_data_)
+            #response_data=list(response_data.values())
+            #print("response_data:", response_data)
 
 
+            l1 = [item['label'] for item in response_data]
 
-        l2 = ['department', 'employeeId', 'designation', 'appUpdatedDate', 'displayName', 'mobile', 'country', 'city', 'email', 'end_date', 'firstName', 'login', 'lastName', 'userType', 'dateOfBirth', 'endDate', 'startDate', 'password', 'status', 'profilePicture', 'appUserId', 'landline']
-
-        l2_datatypes = {
-                        'department': 'STRING',
-                        'employeeId': 'STRING',
-                        'designation': 'STRING',
-                        'appUpdatedDate': 'DATETIME',
-                        'displayName': 'STRING',    
-                        'mobile': 'STRING',
-                        'country': 'STRING',
-                        'city': 'STRING',
-                        'email': 'STRING',
-                        'end_date': 'DATE',
-                        'firstName': 'STRING',
-                        'login': 'STRING',
-                        'lastName': 'STRING',
-                        'userType': 'STRING',
-                        'end_date': 'DATE',
-                        'login': 'STRING',
-                        'userType': 'STRING',
-                        'dateOfBirth': 'DATE',
-                        'endDate': 'DATE',
-                        'startDate': 'DATE',
-                        'password': 'password',
-                        'status': 'STRING',
-                        'profilePicture': 'profilePicture',
-                        'appUserId': 'STRING',
-                        'landline': 'STRING'
-                    }
-        
-        l2, l2_datatypes, custom_attributes = add_custom_attributes_to_list(l2, l2_datatypes, tenant)
-
-        print("list2: ",l2)
-
-        #print("custom_attributes: ", custom_attributes)
-        
-        if isinstance(l2, str):
-            l2_list = convert_string_to_list(l2)
-        else:
-            l2_list = l2
-
-        threshold = 60
-        appId = data.get("appId")
-
-        result = compare_lists_with_fuzzy(l1_list, l2_list, threshold, synonyms_collection)
-        #print("result: ", result)
-        
-        request_id = generate_request_id()
-   
-        score_collection = stored_score(tenant, appId)
-
-        final_response = generate_final_response(result['similar_elements'], response_data, l2_datatypes, score_collection, custom_attributes)
-        #print("final response: ",final_response)
-        final_response_dict = {"final_response": final_response}
-
-        # Assuming 'appId' is present in the received response
-        final_response_dict['appId'] = appId
-
-        output_collection.update_one(
-            {"appId": appId},
-            {"$set": final_response_dict},
-            upsert=True
-        )
-
-        logging.debug("Final response saved successfully")
-
-        subset_response = output_collection.aggregate([
-            {"$unwind": "$final_response"},
-            {"$match": {"final_response.value": {"$ne": None}, "appId": appId}}, 
-            {"$group": {
-                "_id": "$final_response.attributeName",
-                "data": {"$first": "$final_response"}
-            }},
-            {"$project": {
-                "_id": 0,
-                "jsonPath": "$data.jsonPath",
-                "attributeName": "$data.attributeName",
-                "l1_datatype": "$data.l1_datatype",
-                "l2_matched": "$data.l2_matched",
-                "l2_datatype": "$data.l2_datatype",
-                "value": "$data.value",
-                "similarity_percentage": "$data.similarity_percentage",
-                "confidence": "$data.confidence",
-                "matching_decision": "$data.matching_decision",
-                "isCustom": "$data.isCustom"
-            }}
-        ])
+            if isinstance(l1, str):
+                l1_list = set(convert_string_to_list(l1))
+                logging.info(f"list1: {l1_list}")
+            else:
+                #l1_list = remove_underscores_from_set(l1)
+                l1_list = set(l1)
+                #l1_list = set(l1_list)
+                logging.info(f"list1: {l1_list}")
 
 
-        subset_response_data = list(subset_response)
-        # Serialize each document into a JSON serializable format
-        json_serializable_response = []
-        for doc in subset_response_data:
-            json_serializable_doc = {
-                "jsonPath": doc["jsonPath"],
-                "attributeName": doc["attributeName"],
-                "l1_datatype": doc["l1_datatype"],
-                "l2_matched": doc["l2_matched"],
-                "l2_datatype": doc["l2_datatype"],
-                "value": doc["value"],
-                "similarity_percentage": doc["similarity_percentage"],
-                "confidence": doc["confidence"],
-                "matching_decision": doc["matching_decision"],
-                "isCustom": doc["isCustom"]
+
+            l2 = ['department', 'employeeId', 'designation', 'appUpdatedDate', 'displayName', 'mobile', 'country', 'city', 'email', 'end_date', 'firstName', 'login', 'lastName', 'userType', 'dateOfBirth', 'endDate', 'startDate', 'password', 'status', 'profilePicture', 'appUserId', 'landline']
+
+            l2_datatypes = {
+                            'department': 'STRING',
+                            'employeeId': 'STRING',
+                            'designation': 'STRING',
+                            'appUpdatedDate': 'DATETIME',
+                            'displayName': 'STRING',    
+                            'mobile': 'STRING',
+                            'country': 'STRING',
+                            'city': 'STRING',
+                            'email': 'STRING',
+                            'end_date': 'DATE',
+                            'firstName': 'STRING',
+                            'login': 'STRING',
+                            'lastName': 'STRING',
+                            'userType': 'STRING',
+                            'end_date': 'DATE',
+                            'login': 'STRING',
+                            'userType': 'STRING',
+                            'dateOfBirth': 'DATE',
+                            'endDate': 'DATE',
+                            'startDate': 'DATE',
+                            'password': 'password',
+                            'status': 'STRING',
+                            'profilePicture': 'profilePicture',
+                            'appUserId': 'STRING',
+                            'landline': 'STRING'
+                        }
+            
+            l2, l2_datatypes, custom_attributes = add_custom_attributes_to_list(l2, l2_datatypes, tenant)
+
+            logging.info(f"list 2: {l2}")
+
+            #print("custom_attributes: ", custom_attributes)
+            
+            if isinstance(l2, str):
+                l2_list = convert_string_to_list(l2)
+            else:
+                l2_list = l2
+
+            threshold = 60
+            appId = data.get("appId")
+
+            result = compare_lists_with_fuzzy(l1_list, l2_list, threshold, synonyms_collection)
+            #print("result: ", result)
+            
+            request_id = generate_request_id()
+    
+            score_collection = stored_score(tenant, appId)
+
+            final_response = generate_final_response(result['similar_elements'], response_data, l2_datatypes, score_collection, custom_attributes)
+            #print("final response: ",final_response)
+            final_response_dict = {"final_response": final_response}
+
+            # Assuming 'appId' is present in the received response
+            final_response_dict['appId'] = appId
+
+            output_collection.update_one(
+                {"appId": appId},
+                {"$set": final_response_dict},
+                upsert=True
+            )
+
+            logging.debug("Final response saved successfully")
+
+            subset_response = output_collection.aggregate([
+                {"$unwind": "$final_response"},
+                {"$match": {"final_response.value": {"$ne": None}, "appId": appId}}, 
+                {"$group": {
+                    "_id": "$final_response.attributeName",
+                    "data": {"$first": "$final_response"}
+                }},
+                {"$project": {
+                    "_id": 0,
+                    "jsonPath": "$data.jsonPath",
+                    "attributeName": "$data.attributeName",
+                    "l1_datatype": "$data.l1_datatype",
+                    "l2_matched": "$data.l2_matched",
+                    "l2_datatype": "$data.l2_datatype",
+                    "value": "$data.value",
+                    "similarity_percentage": "$data.similarity_percentage",
+                    "confidence": "$data.confidence",
+                    "matching_decision": "$data.matching_decision",
+                    "isCustom": "$data.isCustom"
+                }}
+            ])
+
+
+            subset_response_data = list(subset_response)
+            # Serialize each document into a JSON serializable format
+            json_serializable_response = []
+            for doc in subset_response_data:
+                json_serializable_doc = {
+                    "jsonPath": doc["jsonPath"],
+                    "attributeName": doc["attributeName"],
+                    "l1_datatype": doc["l1_datatype"],
+                    "l2_matched": doc["l2_matched"],
+                    "l2_datatype": doc["l2_datatype"],
+                    "value": doc["value"],
+                    "similarity_percentage": doc["similarity_percentage"],
+                    "confidence": doc["confidence"],
+                    "matching_decision": doc["matching_decision"],
+                    "isCustom": doc["isCustom"]
+                }
+                json_serializable_response.append(json_serializable_doc)
+
+
+            aggregated_data = {
+                "appId": appId,
+                "request_id": request_id,
+                "policyMapList": subset_response_data
             }
-            json_serializable_response.append(json_serializable_doc)
 
+            subset_collection.insert_one(aggregated_data)
 
-        aggregated_data = {
-            "appId": appId,
+            logging.debug("subset response saved successfully")
+
+            data_response = {
             "request_id": request_id,
-            "policyMapList": subset_response_data
+            "content": json_serializable_response
         }
 
-        subset_collection.insert_one(aggregated_data)
-
-        logging.debug("subset response saved successfully")
-
-        data_response = {
-        "request_id": request_id,
-        "content": json_serializable_response
-    }
-
-        #return JSONResponse(content=json_serializable_response)
-        return ResponseModel(data=data_response, message="Policy mapping generated successfully")
+            #return JSONResponse(content=json_serializable_response)
+            return ResponseModel(data=data_response, message="Policy mapping generated successfully")
+        
+        else:
+            logging.info(f" Failed to extract the data from the response")
     
     except HTTPException:
         raise 
@@ -708,7 +712,6 @@ async def map_fields_to_policy(payload: Dict[str, Any]):
 #-------------------Api fpr storing the admin final policymap for training purpose-----------
 @app.post("/generativeaisrvc/store_data")
 async def store_data(payload: dict, tenant: str = Header(None)):
-    print("tenant: ", tenant)
     try:
         request_Id = payload.get("request_id")
         policymap_collection = stored_admin_policymap(tenant)
@@ -736,11 +739,11 @@ async def store_data(payload: dict, tenant: str = Header(None)):
                 if policy1.get("matching_decision") == "synonyms" and policy2.get("matching_decision") == "synonyms" and policy1.get("l2_matched") != policy2.get("l2_matched"):
                     #Fetching attributeName from doc1
                     attribute_name = policy1.get("attributeName").lower()
-                    print("attribute_name: ",attribute_name)
+                    logging.debug("attribute_name: ",attribute_name)
                     
                     # Fetching l2_matched from doc1
                     l2_matched = policy1.get("l2_matched")
-                    print("l2_matched: ",l2_matched)
+                    logging.debug("l2_matched: ",l2_matched)
                     
                     # Finding the attribute in the global collection
                     pipeline = [
@@ -782,7 +785,7 @@ async def store_data(payload: dict, tenant: str = Header(None)):
                             },
                             upsert=True
                         )
-                        print(f"Inserted new synonym: {new_synonym}")
+                        logging.debug(f"Inserted new synonym: {new_synonym}")
 
                     else:
                         for global_doc in global_docs:
@@ -811,15 +814,15 @@ async def store_data(payload: dict, tenant: str = Header(None)):
 
                                 logging.debug(f"Updated score for {attribute_name} to {new_score}")
                             else:
-                                print("No 'synonyms' found in the document.")
+                                logging.debug("No 'synonyms' found in the document.")
                 
                 elif policy1.get("matching_decision") == "synonyms" and policy2.get("matching_decision") == "synonyms" and policy1.get("l2_matched") == policy2.get("l2_matched"):
                     attribute_name = policy1.get("attributeName").lower()
-                    print("attribute_name: ",attribute_name)
+                    logging.debug("attribute_name: ",attribute_name)
                     
                     # Fetching l2_matched from doc1
                     l2_matched = policy1.get("l2_matched")
-                    print("l2_matched: ",l2_matched)
+                    logging.debug("l2_matched: ",l2_matched)
                     
                     # Finding the attribute in the global collection
                     pipeline = [
@@ -879,10 +882,10 @@ async def store_data(payload: dict, tenant: str = Header(None)):
 
                             logging.debug(f"Updated score for {attribute_name} to {new_score}")
                         else:
-                            print("No 'synonyms' found in the document.")
+                            logging.debug("No 'synonyms' found in the document.")
 
                 else:
-                    print("failed")
+                    logging.debug("failed")
 
         #compare fields and make calculation to update the in global collection
         return {"message": "Data saved successfully"}
