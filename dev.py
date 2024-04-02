@@ -713,6 +713,12 @@ async def map_fields_to_policy(payload: Dict[str, Any]):
 @app.post("/generativeaisrvc/store_data")
 async def store_data(payload: dict, tenant: str = Header(None)):
     try:
+        # Check if 'request_id' and 'payload' are present in the request
+        if 'request_Id' not in payload:
+            raise HTTPException(status_code=400, detail="Missing 'request_Id' in request")
+        elif 'payload' not in payload:
+            raise HTTPException(status_code=400, detail="Missing 'payload' in request")
+        
         request_Id = payload.get("request_id")
         policymap_collection = stored_admin_policymap(tenant)
         policymap_collection.insert_one(payload) 
@@ -737,20 +743,20 @@ async def store_data(payload: dict, tenant: str = Header(None)):
                 # print("policy2: ",policy2)
                 
                 if policy1.get("matching_decision") == "synonyms" and policy2.get("matching_decision") == "synonyms" and policy1.get("l2_matched") != policy2.get("l2_matched"):
-                    logging.debug(f" checking and updating where policy1 and policy2 are not equal")
+                    logging.debug(f" checking and updating score where policy1(AI) and policy2(admin) are not equal")
                     #Fetching attributeName from doc1
                     attribute_name1 = policy1.get("attributeName").lower()
-                    print("attribute_name1: ",attribute_name1)
+                    print("attribute_name of the application: ",attribute_name1)
                     
                     # Fetching l2_matched from doc1
                     l2_matched1 = policy1.get("l2_matched")
-                    print("l2_matched1: ",l2_matched1)
+                    print("l2_matched suggested by AI: ",l2_matched1)
                     
                     # Finding the attribute in the global collection
                     pipeline = [
                         {
                             "$match": {
-                                f"synonyms.{l2_matched1}.synonym": attribute_name
+                                f"synonyms.{l2_matched1}.synonym": attribute_name1
                             }
                         },
                         {
@@ -760,7 +766,7 @@ async def store_data(payload: dict, tenant: str = Header(None)):
                                     "$filter": {
                                         "input": f"$synonyms.{l2_matched1}",
                                         "as": "item",
-                                        "cond": { "$eq": ["$$item.synonym", attribute_name] }
+                                        "cond": { "$eq": ["$$item.synonym", attribute_name1] }
                                     }
                                 }
                             }
@@ -781,7 +787,7 @@ async def store_data(payload: dict, tenant: str = Header(None)):
                             # Updating the global collection with the new score
                             synonyms_collection.update_one(
                                 {
-                                    f"synonyms.{l2_matched1}.synonym": str(attribute_name)
+                                    f"synonyms.{l2_matched1}.synonym": str(attribute_name1)
                                 },
                                 {
                                     "$set": {
@@ -790,27 +796,26 @@ async def store_data(payload: dict, tenant: str = Header(None)):
                                 },
                                 array_filters=[
                                     {
-                                        "elem.synonym": str(attribute_name)
+                                        "elem.synonym": str(attribute_name1)
                                     }
                                 ],
                                 upsert= True
                             )
 
-                            logging.debug(f"Updated score for {attribute_name} to {new_score}")
+                            logging.debug(f"Updated score for {attribute_name1} to {new_score} since the suggestion given was wrong by AI")
                         else:
                             logging.debug("No 'synonyms' found in the document.")
 
-
                     #----------------------for storing new synonyms against the admin l2matched---------------------
                     attribute_name2 = policy2.get("attributeName").lower()
-                    print("attribute_name2: ",attribute_name2)
+                    print("attribute_name of the application: ",attribute_name2)
                     
                     # Fetching l2_matched from doc2
                     l2_matched2 = policy2.get("l2_matched")
-                    print("l2_matched2: ",l2_matched2)
+                    print("l2_matched by admin: ",l2_matched2)
 
                     new_synonym = {
-                        "synonym": attribute_name,
+                        "synonym": attribute_name2,
                         "score": 1
                     }
                     synonyms_collection.update_one(
@@ -822,18 +827,17 @@ async def store_data(payload: dict, tenant: str = Header(None)):
                         },
                         upsert=True
                     )
-                    logging.debug(f"Inserted new synonym: {new_synonym}")
+
+                    logging.debug(f"Inserted new synonym as suggested by admin: {new_synonym}")
                 
                 elif policy1.get("matching_decision") == "synonyms" and policy2.get("matching_decision") == "synonyms" and policy1.get("l2_matched") == policy2.get("l2_matched"):
-                    logging.debug(f" checking and updating where policy1 and policy2 are equal")
+                    logging.debug(f" checking and updating score where policy1(AI) and policy2(admin) are equal")
                     attribute_name = policy1.get("attributeName").lower()
-                    print("attribute_name: ",attribute_name)
-                    #logging.debug("attribute_name: ",attribute_name)
+                    print("attribute_name of the application: ",attribute_name)
                     
                     # Fetching l2_matched from doc1
                     l2_matched = policy1.get("l2_matched")
-                    print("l2_matched: ", l2_matched)
-                    #logging.debug("l2_matched: ",l2_matched)
+                    print("l2_matched suggested by AI: ", l2_matched)
                     
                     # Finding the attribute in the global collection
                     pipeline = [
@@ -891,19 +895,19 @@ async def store_data(payload: dict, tenant: str = Header(None)):
                                 upsert= True
                             )
 
-                            logging.debug(f"Updated score for {attribute_name} to {new_score}")
+                            logging.debug(f"Updated score for {attribute_name} to {new_score} since the suggestion given was right by AI")
                         else:
                             logging.debug("No 'synonyms' found in the document.")
 
                 elif policy1.get("matching_decision") == "" and policy2.get("matching_decision") == "" and policy2.get("l2_matched")!= "":
-                    logging.debug(f" checking and updating where matching decision is empty")
+                    logging.debug(f" checking and updating where matching decision is empty string")
                     
                     attribute_name2 = policy2.get("attributeName").lower()
-                    print("attribute_name2: ",attribute_name2)
+                    print("attribute_name of the application: ",attribute_name2)
                     
-                    # Fetching l2_matched from doc1
+                    # Fetching l2_matched from doc2
                     l2_matched2 = policy2.get("l2_matched")
-                    print("l2_matched2: ",l2_matched2)
+                    print("l2_matched by admin: ",l2_matched2)
 
                     new_synonym = {
                         "synonym": attribute_name2,
