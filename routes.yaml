@@ -140,9 +140,9 @@ spec:
     methods:
     - '*'
     port: 0
-    rewrite: /generativeaisrvc/store_data
+    rewrite: /generativeaisrvc/feedback
     type: prefix
-    url: /generativeaisrvc/store_data
+    url: /generativeaisrvc/feedback
   targets:
   - host: generativeaiservice.unotech.svc.cluster.local
     port: 8080
