@@ -733,14 +733,16 @@ async def map_fields_to_policy(payload: Dict[str, Any]):
 #-------------------Api fpr storing the admin final policymap for training purpose-----------
 @app.post("/generativeaisrvc/feedback")
 async def store_data(payload: dict, tenant: str = Header(None)):
+    print("tenant: ",tenant)
     try:
         # Check if 'request_id' and 'payload' are present in the request
-        if 'request_Id' not in payload:
-            raise HTTPException(status_code=400, detail="Missing 'request_Id' in request")
-        elif 'payload' not in payload:
-            raise HTTPException(status_code=400, detail="Missing 'payload' in request")
-        
+        # if 'request_Id' not in payload:
+        #     raise HTTPException(status_code=400, detail="Missing 'request_Id' in request")
+        # elif 'payload' not in payload:
+        #     raise HTTPException(status_code=400, detail="Missing 'payload' in request")
+        logging.debug(f" The payload is {payload}")
         request_Id = payload.get("request_id")
+        logging.debug(f" The request_Id is {request_Id}")
         policymap_collection = stored_admin_policymap(tenant)
         policymap_collection.insert_one(payload) 
 
@@ -952,7 +954,8 @@ async def store_data(payload: dict, tenant: str = Header(None)):
         #compare fields and make calculation to update the in global collection
         return {"message": "Data saved successfully"}
     except Exception as e:
+        print("faileddddddd")
         raise HTTPException(status_code=500, detail=str(e)) 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=5000)
+    uvicorn.run(app, host="0.0.0.0", port=5000, debug=True)
