@@ -42,7 +42,7 @@ spec:
     type: prefix
     url: /generativeaisrvc/get_policy_mapped
   targets:
-  - host: generativeaiservice.unotech.svc.cluster.local
+  - host: 10.0.1.4
     port: 8080
     scheme: http
     type: ""
@@ -93,7 +93,7 @@ spec:
     type: prefix
     url: /generativeaisrvc/map_fields_to_policy
   targets:
-  - host: generativeaiservice.unotech.svc.cluster.local
+  - host: 10.0.1.4
     port: 8080
     scheme: http
     type: ""
@@ -144,7 +144,7 @@ spec:
     type: prefix
     url: /generativeaisrvc/feedback
   targets:
-  - host: generativeaiservice.unotech.svc.cluster.local
+  - host: 10.0.1.4
     port: 8080
     scheme: http
     type: ""
