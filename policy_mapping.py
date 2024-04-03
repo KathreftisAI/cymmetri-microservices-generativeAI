@@ -20,6 +20,7 @@ from fuzzywuzzy import process
 import uvicorn
 import uuid
 from typing import Set
+import re
 
 app = FastAPI()
  
@@ -252,11 +253,12 @@ def compare_lists_with_fuzzy(l1, l2, threshold, synonyms_collection):
         # Check similarity with original list (l2)
         for element_l2 in l2:
             el1 = str(element_l1).lower()
+            el1 = re.sub(r'[^a-zA-Z0-9]', '', el1).lower()
             el2 = str(element_l2).lower()
-            similarity = fuzz.ratio(el1, el2)
-            if similarity > max_similarity and similarity >= threshold:
-                max_similarity = similarity
-                matching_element_l2 = element_l2
+            # similarity = fuzz.ratio(el1, el2)
+            # if similarity > max_similarity and similarity >= threshold:
+            #     max_similarity = similarity
+            #     matching_element_l2 = element_l2
 
         if not matching_element_l2:
             synonyms_doc = synonyms_collection.find_one()
@@ -570,6 +572,25 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
                         }
             
             l2, l2_datatypes, custom_attributes = add_custom_attributes_to_list(l2, l2_datatypes, tenant)
+
+            #print("custom attributes: ", custom_attributes)
+            for attribute in custom_attributes:
+                preprocess_attribute = re.sub(r'[^a-zA-Z0-9]', '', attribute).lower()
+
+                new_synonym = {
+                        "synonym": preprocess_attribute,
+                        "score": 1
+                    }
+                synonyms_collection.update_one(
+                        {},
+                        {
+                            "$addToSet": {
+                                f"synonyms.{attribute}": new_synonym
+                            }
+                        },
+                        upsert=True
+                    )
+            logging.debug(f"new synonyms inserted succesfully")
 
             logging.info(f"list 2: {l2}")
 
