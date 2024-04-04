@@ -38,7 +38,7 @@ spec:
     methods:
     - '*'
     port: 0
-    rewrite: /generativeaisrvc/get_policy_mapped
+    rewrite: ""
     type: prefix
     url: /generativeaisrvc/get_policy_mapped
   targets:
@@ -89,7 +89,7 @@ spec:
     methods:
     - '*'
     port: 0
-    rewrite: /generativeaisrvc/map_fields_to_policy
+    rewrite: ""
     type: prefix
     url: /generativeaisrvc/map_fields_to_policy
   targets:
@@ -140,7 +140,7 @@ spec:
     methods:
     - '*'
     port: 0
-    rewrite: /generativeaisrvc/feedback
+    rewrite: ""
     type: prefix
     url: /generativeaisrvc/feedback
   targets:
