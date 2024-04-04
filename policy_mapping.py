@@ -733,27 +733,30 @@ async def map_fields_to_policy(payload: Dict[str, Any]):
 #-------------------Api fpr storing the admin final policymap for training purpose-----------
 @app.post("/generativeaisrvc/feedback")
 async def store_data(payload: dict, tenant: str = Header(None)):
-    print("tenant: ",tenant)
+    logging.debug(f"API call for feedback given by admin")
+
+    logging.debug(f"working on tenant: {tenant}")
     try:
         # Check if 'request_id' and 'payload' are present in the request
-        # if 'request_Id' not in payload:
-        #     raise HTTPException(status_code=400, detail="Missing 'request_Id' in request")
-        # elif 'payload' not in payload:
-        #     raise HTTPException(status_code=400, detail="Missing 'payload' in request")
+        if payload is None:
+            raise HTTPException(status_code=400, detail="Missing 'payload' in request")
+        elif 'request_id' not in payload:
+            raise HTTPException(status_code=400, detail="Missing 'request_id' in request")
+        
         logging.debug(f" The payload is {payload}")
-        request_Id = payload.get("request_id")
-        logging.debug(f" The request_Id is {request_Id}")
+        request_id = payload.get("request_id")
+        logging.debug(f" The request_id is {request_id}")
         policymap_collection = stored_admin_policymap(tenant)
         policymap_collection.insert_one(payload) 
 
-        logging.debug(f"Data inserted succesfully for request_Id : {request_Id}")
+        logging.debug(f"Data inserted succesfully for request_id : {request_id}")
 
         # query AI suggestion collection
         subset_collection = stored_policy_mapped(tenant)
-        doc1 = subset_collection.find_one({"request_id":request_Id})
+        doc1 = subset_collection.find_one({"request_id":request_id})
 
         # query admin collection
-        doc2 = policymap_collection.find_one({"request_id":request_Id})
+        doc2 = policymap_collection.find_one({"request_id":request_id})
 
         #query global collection
         synonyms_collection = get_master_collection("amayaSynonymsMaster")
@@ -766,7 +769,7 @@ async def store_data(payload: dict, tenant: str = Header(None)):
                 # print("policy2: ",policy2)
                 
                 if policy1.get("matching_decision") == "synonyms" and policy2.get("matching_decision") == "synonyms" and policy1.get("l2_matched") != policy2.get("l2_matched"):
-                    logging.debug(f" checking and updating score where policy1(AI) and policy2(admin) are not equal")
+                    logging.debug(f" checking and updating score where policy1(AI) and policy2(admin) are not equal.")
                     #Fetching attributeName from doc1
                     attribute_name1 = policy1.get("attributeName").lower()
                     print("attribute_name of the application: ",attribute_name1)
@@ -774,6 +777,9 @@ async def store_data(payload: dict, tenant: str = Header(None)):
                     # Fetching l2_matched from doc1
                     l2_matched1 = policy1.get("l2_matched")
                     print("l2_matched suggested by AI: ",l2_matched1)
+
+                    l2matched2 = policy2.get("l2_matched")
+                    print("l2_matched given by admin",l2matched2)
                     
                     # Finding the attribute in the global collection
                     pipeline = [
@@ -825,7 +831,8 @@ async def store_data(payload: dict, tenant: str = Header(None)):
                                 upsert= True
                             )
 
-                            logging.debug(f"Updated score for {attribute_name1} to {new_score} since the suggestion given was wrong by AI")
+                            logging.debug(f"Updated score for {attribute_name1} to {new_score} score, since the suggestion given {l2_matched1} was wrong by AI and it should be {l2_matched2}.")
+                            logging.debug(f"End of calculation logic.")
                         else:
                             logging.debug("No 'synonyms' found in the document.")
 
@@ -851,10 +858,11 @@ async def store_data(payload: dict, tenant: str = Header(None)):
                         upsert=True
                     )
 
-                    logging.debug(f"Inserted new synonym as suggested by admin: {new_synonym}")
+                    logging.debug(f"Inserted new synonym as suggested by admin: {new_synonym} for {l2_matched2}")
+                    logging.debug(f"End of calculation logic")
                 
                 elif policy1.get("matching_decision") == "synonyms" and policy2.get("matching_decision") == "synonyms" and policy1.get("l2_matched") == policy2.get("l2_matched"):
-                    logging.debug(f" checking and updating score where policy1(AI) and policy2(admin) are equal")
+                    logging.debug(f" checking and updating score where policy1(AI) and policy2(admin) are equal.")
                     attribute_name = policy1.get("attributeName").lower()
                     print("attribute_name of the application: ",attribute_name)
                     
@@ -918,12 +926,14 @@ async def store_data(payload: dict, tenant: str = Header(None)):
                                 upsert= True
                             )
 
-                            logging.debug(f"Updated score for {attribute_name} to {new_score} since the suggestion given was right by AI")
+                            logging.debug(f"Updated score for {attribute_name} to {new_score} score, since the suggestion given {l2_matched} was right by AI.")
+                            logging.debug(f"End of calculation logic.")
+
                         else:
                             logging.debug("No 'synonyms' found in the document.")
 
                 elif policy1.get("matching_decision") == "" and policy2.get("matching_decision") == "" and policy2.get("l2_matched")!= "":
-                    logging.debug(f" checking and updating where matching decision is empty string")
+                    logging.debug(f" checking and updating where matching decision is empty string.")
                     
                     attribute_name2 = policy2.get("attributeName").lower()
                     print("attribute_name of the application: ",attribute_name2)
@@ -945,11 +955,11 @@ async def store_data(payload: dict, tenant: str = Header(None)):
                         },
                         upsert=True
                     )
-                    logging.debug(f"Inserted new synonym: {new_synonym}")
-
+                    logging.debug(f"Inserted new synonym: {new_synonym} for {l2_matched2}.")
+                    logging.debug(f"End of calculation logic.")
 
                 else:
-                    logging.debug("no need to analyze and changed")
+                    logging.debug("no need to analyze and changed.")
 
         #compare fields and make calculation to update the in global collection
         return {"message": "Data saved successfully"}
