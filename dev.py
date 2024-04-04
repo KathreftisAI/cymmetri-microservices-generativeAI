@@ -763,8 +763,6 @@ async def store_data(payload: dict, tenant: str = Header(None)):
         synonyms_collection = get_master_collection("amayaSynonymsMaster")
 
         if doc1 and doc2:
-            # print("doc1: ",doc1)
-            # print("doc2: ",doc2)
             for policy1, policy2 in zip(doc1["policyMapList"], doc2["policyMapList"]):
                 # print("policy1: ",policy1)
                 # print("policy2: ",policy2)
@@ -832,7 +830,7 @@ async def store_data(payload: dict, tenant: str = Header(None)):
                                 upsert= True
                             )
 
-                            logging.debug(f"Updated score for {attribute_name1} to {new_score} score, since the suggestion given {l2_matched1} was wrong by AI and it should be {l2_matched2}.")
+                            logging.debug(f"Updated score for {attribute_name1} to {new_score} score, since the suggestion given {l2_matched1} was wrong by AI.")
                             logging.debug(f"End of calculation logic.")
                         else:
                             logging.debug("No 'synonyms' found in the document.")
@@ -859,7 +857,7 @@ async def store_data(payload: dict, tenant: str = Header(None)):
                         upsert=True
                     )
 
-                    logging.debug(f"Inserted new synonym as suggested by admin: {new_synonym} for {l2_matched2}")
+                    logging.debug(f"Inserted new synonym as suggested by admin: {new_synonym}")
                     logging.debug(f"End of calculation logic")
                 
                 elif policy1.get("matching_decision") == "synonyms" and policy2.get("matching_decision") == "synonyms" and policy1.get("l2_matched") == policy2.get("l2_matched"):
@@ -956,7 +954,7 @@ async def store_data(payload: dict, tenant: str = Header(None)):
                         },
                         upsert=True
                     )
-                    logging.debug(f"Inserted new synonym: {new_synonym} for {l2_matched2}.")
+                    logging.debug(f"Inserted new synonym: {new_synonym}.")
                     logging.debug(f"End of calculation logic.")
 
                 else:
