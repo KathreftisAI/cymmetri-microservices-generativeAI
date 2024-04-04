@@ -32,14 +32,21 @@ logging.basicConfig(
 
 def ResponseModel(data, message, code=200, error_code=None):
     return {
+        "success": True,
         "data": data,
         "code": code,
         "message": message,
         "error_code": error_code
     }
 
-def ErrorResponseModel(error, code, message):
-    return {"error": error, "code": code, "message": message}
+def ErrorResponseModel(data, success, code, message, error_code):
+    return { 
+        "data": None,
+        "success": False,
+        "code": code, 
+        "message": message,
+        "error_code": error_code
+        }
 
 #--------- stored the payload as input----------
 def stored_input(tenant: str):
@@ -375,6 +382,7 @@ def get_confidence_level(similarity_score: float, score_collection) -> str:
             return "Unknown"  # No matching range found, return Unknown
     except Exception as e:
        raise HTTPException(status_code=400, detail="score_collection_error")
+       
 
 
 #----------------------generates final response---------------
@@ -498,10 +506,23 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
 
         # Check if 'appId' and 'payload' are present in the request
         if 'appId' not in data:
-            raise HTTPException(status_code=400, detail="Missing 'appId' in request")
+            return ErrorResponseModel(
+                data = None,
+                success= False,
+                code=400,
+                message="Missing 'appId' in request",
+                error_code="APPID_MISSING_ERROR"
+            )
+        
         elif 'payload' not in data:
-            raise HTTPException(status_code=400, detail="Missing 'payload' in request")
-
+            return ErrorResponseModel(
+                data = None,
+                success= False,
+                code=400,
+                message="Missing 'payload' in request",
+                error_code="PAYLOAD_MISSING_ERROR"
+            )
+        
         # Validate the format of 'payload'
         if not isinstance(data['payload'], dict):
             if isinstance(data['payload'], list):
@@ -512,7 +533,14 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
                         converted_payload[key] = value
                 data['payload'] = converted_payload
             else:
-                raise HTTPException(status_code=400, detail="'payload' must be a dictionary or list")        
+                #raise HTTPException(status_code=400, detail="'payload' must be a dictionary or list")
+                return ErrorResponseModel(
+                data = None,
+                success= False,
+                code=400,
+                message="payload' must be a dictionary or list",
+                error_code="MUST_BE_DICT_OR_LIST"
+            )
  
         json_data = data.get('payload')
 
@@ -704,9 +732,24 @@ async def map_fields_to_policy(payload: Dict[str, Any]):
         policy_mapping = payload.get("policyMapping")
 
         if not body:
-            raise HTTPException(status_code=400, detail="body empty")
+            #raise HTTPException(status_code=400, detail="body empty")
+            return ErrorResponseModel(
+                data = None,
+                success= False,
+                code=400,
+                message="Missing 'body' in request",
+                error_code="BODY_MISSING_ERROR"
+            )
         elif not policy_mapping:
-            raise HTTPException(status_code=400, detail="policy_mapping empty")
+            #raise HTTPException(status_code=400, detail="policy_mapping empty")
+            return ErrorResponseModel(
+                data = None,
+                success= False,
+                code=400,
+                message="Missing 'policy_mapping' in request",
+                error_code="POLICY_MAPPING_MISSING_ERROR"
+            )
+        
 
         mapped_data = {}
 
@@ -723,13 +766,14 @@ async def map_fields_to_policy(payload: Dict[str, Any]):
                     mapped_data[field] = value
 
         return mapped_data
+        #return ResponseModel(data=mapped_data, message="auto policy mapped generated successfully")
+
     
     except HTTPException:
         raise
     except Exception as e:
-        return ErrorResponseModel(error=str(e), code=500, message="Exception while running mapping field.")
+        return ErrorResponseModel(error=str(e), code=500, message="Exception while running policy mappping.")
     
-
 
 #-------------------Api fpr storing the admin final policymap for training purpose-----------
 @app.post("/generativeaisrvc/feedback")
@@ -738,11 +782,29 @@ async def store_data(payload: dict, tenant: str = Header(None)):
 
     logging.debug(f"working on tenant: {tenant}")
     try:
-        # Check if 'request_id' and 'payload' are present in the request
-        if payload is None:
-            raise HTTPException(status_code=400, detail="Missing 'payload' in request")
-        elif 'request_id' not in payload:
-            raise HTTPException(status_code=400, detail="Missing 'request_id' in request")
+        request_id = payload.get("request_id")
+        policyMapList = payload.get("policyMapList")
+
+        # Check if 'request_id' and 'policyMapList' are present in the request
+        if not policyMapList :
+            #raise HTTPException(status_code=400, detail="Missing 'payload' in request")
+            return ErrorResponseModel(
+                data = None,
+                success= False,
+                code=400,
+                message="Missing 'policyMapList' in request",
+                error_code="POLICYMAPLIST_MISSING"
+            )
+        elif not request_id :
+            #raise HTTPException(status_code=400, detail="Missing 'request_id' in request")
+            return ErrorResponseModel(
+                data = None,
+                success= False,
+                code=400,
+                message="Missing 'request_id' in request",
+                error_code="REQUEST_ID_MISSING"
+            )
+            
         
         logging.debug(f" The payload is {payload}")
         request_id = payload.get("request_id")
@@ -962,9 +1024,14 @@ async def store_data(payload: dict, tenant: str = Header(None)):
 
         #compare fields and make calculation to update the in global collection
         return {"message": "Data saved successfully"}
+    except HTTPException:
+        raise
+    # except Exception as e:
+    #     print("faileddddddd")
     except Exception as e:
-        print("faileddddddd")
-        raise HTTPException(status_code=500, detail=str(e)) 
+        return ErrorResponseModel(error=str(e), code=500, message="Exception while running feedback.")   
+        #raise HTTPException(status_code=500, detail=str(e)) 
+        
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=5000, debug=True)
