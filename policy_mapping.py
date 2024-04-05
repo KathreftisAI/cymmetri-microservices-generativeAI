@@ -3,7 +3,7 @@ from fastapi import FastAPI, Form, Request, HTTPException, Header
 import httpx
 import json
 import logging
-from fastapi import FastAPI, Form
+from fastapi import FastAPI, Form, Response, status
 from fastapi.responses import JSONResponse
 from fuzzywuzzy import fuzz
 from typing import List, Union
@@ -107,6 +107,14 @@ def remove_underscores_from_set(input_set):
 def generate_request_id():
     id = uuid.uuid1()
     return id.hex
+
+#-------------for badrequest---------
+def create_bad_request_response(response_val):
+    return Response(
+        content=json.dumps(response_val),
+        status_code=status.HTTP_400_BAD_REQUEST,
+        headers={'Content-Type': 'application/json'}
+    )
 
 #--------------for adding custome attributes in cymmetri field list------------
 def add_custom_attributes_to_list(l2, l2_datatypes, tenant):
@@ -311,7 +319,10 @@ def compare_lists_with_fuzzy(l1, l2, threshold, synonyms_collection):
                 ])
                 if data:
                     for document in data:
-                        matching_element_l2 = document.get('key', None)
+                        key = document.get('key', None)
+                        if key is not None and key in l2:
+                            matching_element_l2 = key
+                        #matching_element_l2 = document.get('key', None)
                         synonyms = document.get('synonyms', [])
                         max_similarity = None
                         if synonyms:
@@ -507,20 +518,22 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
 
         # Check if 'appId' and 'payload' are present in the request
         if 'appId' not in data:
-            response_val ={}
-            response_val["data"] = None
-            response_val["success"] = "false",
-            response_val["errorCode"] = "APPID_MISSING_ERROR",
-            response_val["message"] = "Missing 'appId' in request"
-            raise HTTPException(status_code=400, detail=response_val)
+            response_val = {
+                "data": None,
+                "success": False,
+                "errorCode": "APPID_MISSING_ERROR",
+                "message": "Missing 'appId' in request"
+            }
+            return create_bad_request_response(response_val)
         
         elif 'payload' not in data:
-            response_val ={}
-            response_val["data"] = None
-            response_val["success"] = "false",
-            response_val["errorCode"] = "PAYLOAD_MISSING_ERROR",
-            response_val["message"] = "Missing 'payload' in request"
-            raise HTTPException(status_code=400, detail=response_val)
+            response_val = {
+                "data": None,
+                "success": False,
+                "errorCode": "PAYLOAD_MISSING_ERROR",
+                "message": "Missing 'payload' in request"
+            }
+            return create_bad_request_response(response_val)
         
         # Validate the format of 'payload'
         if not isinstance(data['payload'], dict):
@@ -532,13 +545,13 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
                         converted_payload[key] = value
                 data['payload'] = converted_payload
             else:
-                #raise HTTPException(status_code=400, detail="'payload' must be a dictionary or list")
-                response_val ={}
-                response_val["data"] = None
-                response_val["success"] = "false",
-                response_val["errorCode"] = "MUST_BE_DICT_OR_LIST",
-                response_val["message"] = "payload' must be a dictionary or list"
-                raise HTTPException(status_code=400, detail=response_val)
+                response_val = {
+                "data": None,
+                "success": False,
+                "errorCode": "MUST_BE_DICT_OR_LIST",
+                "message": "payload' must be a dictionary or list"
+                }
+            return create_bad_request_response(response_val)
  
         json_data = data.get('payload')
 
@@ -725,6 +738,8 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
 #------- Api for body populating----------
 @app.post("/generativeaisrvc/map_fields_to_policy")
 async def map_fields_to_policy(payload: Dict[str, Any]):
+    logging.debug(f"API call for auto fill policy for create/update user.")
+
     try:
         body = payload.get("body")
         policy_mapping = payload.get("policyMapping")
@@ -736,8 +751,10 @@ async def map_fields_to_policy(payload: Dict[str, Any]):
                 "errorCode": "BODY_MISSING_ERROR",
                 "message": "Missing 'body' in request"
             }
-            raise HTTPException(400, detail=response_val)
-            
+            return create_bad_request_response(response_val)
+            #return Response(content=json.dumps(response_val),status_code=status.HTTP_400_BAD_REQUEST,headers={'Content-Type':'application/json'})
+        
+
         elif not policy_mapping:
             response_val = {
                 "data": None,
@@ -745,7 +762,8 @@ async def map_fields_to_policy(payload: Dict[str, Any]):
                 "errorCode": "POLICY_MAPPING_MISSING_ERROR",
                 "message": "Missing 'policy_mapping' in request"
             }
-            raise HTTPException(400, detail=response_val)
+            return create_bad_request_response(response_val)
+            #raise HTTPException(400, detail=response_val)
 
         mapped_data = {}
 
@@ -767,8 +785,7 @@ async def map_fields_to_policy(payload: Dict[str, Any]):
     except HTTPException:
         raise
     except Exception as e:
-        return ErrorResponseModel(error=str(e), code=500, message="Exception while running policy mappping.", errorCode= "Invalid")
-
+        return ErrorResponseModel(error=str(e), code=500, message="Exception while running autofill policy.", errorCode= "Invalid")
 
 #-------------------Api fpr storing the admin final policymap for training purpose-----------
 @app.post("/generativeaisrvc/feedback")
@@ -782,22 +799,22 @@ async def store_data(payload: dict, tenant: str = Header(None)):
 
         # Check if 'request_id' and 'policyMapList' are present in the request
         if not policyMapList :
-            #raise HTTPException(status_code=400, detail="Missing 'payload' in request")
-            response_val ={}
-            response_val["data"] = None
-            response_val["success"] = "false",
-            response_val["errorCode"] = "POLICYMAPLIST_MISSING",
-            response_val["message"] = "Missing 'policyMapList' in request"
-            raise HTTPException(status_code=400, detail=response_val)
+            response_val = {
+                "data": None,
+                "success": False,
+                "errorCode": "POLICYMAPLIST_MISSING",
+                "message": "Missing 'policyMapList' in request"
+            }
+            return create_bad_request_response(response_val)
         
         elif not request_id :
-            #raise HTTPException(status_code=400, detail="Missing 'request_id' in request")
-            response_val ={}
-            response_val["data"] = None
-            response_val["success"] = "false",
-            response_val["errorCode"] = "REQUEST_ID_MISSING",
-            response_val["message"] = "Missing 'request_id' in request"
-            raise HTTPException(status_code=400, detail=response_val)
+            response_val = {
+                "data": None,
+                "success": False,
+                "errorCode": "REQUEST_ID_MISSING",
+                "message": "Missing 'request_id' in request"
+            }
+            return create_bad_request_response(response_val)
             
         
         logging.debug(f" The payload is {payload}")
