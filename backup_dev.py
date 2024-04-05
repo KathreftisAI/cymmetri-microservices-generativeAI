@@ -3,7 +3,7 @@ from fastapi import FastAPI, Form, Request, HTTPException, Header
 import httpx
 import json
 import logging
-from fastapi import FastAPI, Form, Response, status
+from fastapi import FastAPI, Form
 from fastapi.responses import JSONResponse
 from fuzzywuzzy import fuzz
 from typing import List, Union
@@ -30,24 +30,16 @@ logging.basicConfig(
 )
 
 
-def ResponseModel(data, message, code=200, errorCode=None):
+def ResponseModel(data, message, code=200, error_code=None):
     return {
-        "success": True,
         "data": data,
         "code": code,
         "message": message,
-        "errorCode": errorCode
+        "error_code": error_code
     }
 
-def ErrorResponseModel(error, code, message, errorCode):
-    return { 
-        "data": None,
-        "success": False,
-        "code": code, 
-        "message": message,
-        "errorCode": errorCode,
-        "error": error
-        }
+def ErrorResponseModel(error, code, message):
+    return {"error": error, "code": code, "message": message}
 
 #--------- stored the payload as input----------
 def stored_input(tenant: str):
@@ -107,14 +99,6 @@ def remove_underscores_from_set(input_set):
 def generate_request_id():
     id = uuid.uuid1()
     return id.hex
-
-#-------------for badrequest---------
-def create_bad_request_response(response_val):
-    return Response(
-        content=json.dumps(response_val),
-        status_code=status.HTTP_400_BAD_REQUEST,
-        headers={'Content-Type': 'application/json'}
-    )
 
 #--------------for adding custome attributes in cymmetri field list------------
 def add_custom_attributes_to_list(l2, l2_datatypes, tenant):
@@ -319,10 +303,7 @@ def compare_lists_with_fuzzy(l1, l2, threshold, synonyms_collection):
                 ])
                 if data:
                     for document in data:
-                        key = document.get('key', None)
-                        if key is not None and key in l2:
-                            matching_element_l2 = key
-                        #matching_element_l2 = document.get('key', None)
+                        matching_element_l2 = document.get('key', None)
                         synonyms = document.get('synonyms', [])
                         max_similarity = None
                         if synonyms:
@@ -394,7 +375,6 @@ def get_confidence_level(similarity_score: float, score_collection) -> str:
             return "Unknown"  # No matching range found, return Unknown
     except Exception as e:
        raise HTTPException(status_code=400, detail="score_collection_error")
-       
 
 
 #----------------------generates final response---------------
@@ -518,23 +498,10 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
 
         # Check if 'appId' and 'payload' are present in the request
         if 'appId' not in data:
-            response_val = {
-                "data": None,
-                "success": False,
-                "errorCode": "APPID_MISSING_ERROR",
-                "message": "Missing 'appId' in request"
-            }
-            return create_bad_request_response(response_val)
-        
+            raise HTTPException(status_code=400, detail="Missing 'appId' in request")
         elif 'payload' not in data:
-            response_val = {
-                "data": None,
-                "success": False,
-                "errorCode": "PAYLOAD_MISSING_ERROR",
-                "message": "Missing 'payload' in request"
-            }
-            return create_bad_request_response(response_val)
-        
+            raise HTTPException(status_code=400, detail="Missing 'payload' in request")
+
         # Validate the format of 'payload'
         if not isinstance(data['payload'], dict):
             if isinstance(data['payload'], list):
@@ -545,13 +512,7 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
                         converted_payload[key] = value
                 data['payload'] = converted_payload
             else:
-                response_val = {
-                "data": None,
-                "success": False,
-                "errorCode": "MUST_BE_DICT_OR_LIST",
-                "message": "payload' must be a dictionary or list"
-                }
-            return create_bad_request_response(response_val)
+                raise HTTPException(status_code=400, detail="'payload' must be a dictionary or list")        
  
         json_data = data.get('payload')
 
@@ -565,7 +526,6 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
             response_data = get_distinct_keys_and_datatypes(json_data_)
             #response_data=list(response_data.values())
             #print("response_data:", response_data)
-
 
 
             l1 = [item['label'] for item in response_data]
@@ -739,32 +699,14 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
 #------- Api for body populating----------
 @app.post("/generativeaisrvc/map_fields_to_policy")
 async def map_fields_to_policy(payload: Dict[str, Any]):
-    logging.debug(f"API call for auto fill policy for create/update user.")
-
     try:
         body = payload.get("body")
         policy_mapping = payload.get("policyMapping")
 
         if not body:
-            response_val = {
-                "data": None,
-                "success": False,
-                "errorCode": "BODY_MISSING_ERROR",
-                "message": "Missing 'body' in request"
-            }
-            return create_bad_request_response(response_val)
-            #return Response(content=json.dumps(response_val),status_code=status.HTTP_400_BAD_REQUEST,headers={'Content-Type':'application/json'})
-        
-
+            raise HTTPException(status_code=400, detail="body empty")
         elif not policy_mapping:
-            response_val = {
-                "data": None,
-                "success": False,
-                "errorCode": "POLICY_MAPPING_MISSING_ERROR",
-                "message": "Missing 'policy_mapping' in request"
-            }
-            return create_bad_request_response(response_val)
-            #raise HTTPException(400, detail=response_val)
+            raise HTTPException(status_code=400, detail="policy_mapping empty")
 
         mapped_data = {}
 
@@ -781,12 +723,13 @@ async def map_fields_to_policy(payload: Dict[str, Any]):
                     mapped_data[field] = value
 
         return mapped_data
-        #return ResponseModel(data=mapped_data, message="auto policy mapped generated successfully")
-
+    
     except HTTPException:
         raise
     except Exception as e:
-        return ErrorResponseModel(error=str(e), code=500, message="Exception while running autofill policy.", errorCode= "Invalid")
+        return ErrorResponseModel(error=str(e), code=500, message="Exception while running mapping field.")
+    
+
 
 #-------------------Api fpr storing the admin final policymap for training purpose-----------
 @app.post("/generativeaisrvc/feedback")
@@ -795,28 +738,11 @@ async def store_data(payload: dict, tenant: str = Header(None)):
 
     logging.debug(f"working on tenant: {tenant}")
     try:
-        request_id = payload.get("request_id")
-        policyMapList = payload.get("policyMapList")
-
-        # Check if 'request_id' and 'policyMapList' are present in the request
-        if not policyMapList :
-            response_val = {
-                "data": None,
-                "success": False,
-                "errorCode": "POLICYMAPLIST_MISSING",
-                "message": "Missing 'policyMapList' in request"
-            }
-            return create_bad_request_response(response_val)
-        
-        elif not request_id :
-            response_val = {
-                "data": None,
-                "success": False,
-                "errorCode": "REQUEST_ID_MISSING",
-                "message": "Missing 'request_id' in request"
-            }
-            return create_bad_request_response(response_val)
-            
+        # Check if 'request_id' and 'payload' are present in the request
+        if payload is None:
+            raise HTTPException(status_code=400, detail="Missing 'payload' in request")
+        elif 'request_id' not in payload:
+            raise HTTPException(status_code=400, detail="Missing 'request_id' in request")
         
         logging.debug(f" The payload is {payload}")
         request_id = payload.get("request_id")
@@ -845,14 +771,14 @@ async def store_data(payload: dict, tenant: str = Header(None)):
                     logging.debug(f" checking and updating score where policy1(AI) and policy2(admin) are not equal.")
                     #Fetching attributeName from doc1
                     attribute_name1 = policy1.get("attributeName").lower()
-                    logging.debug(f"attribute_name of the application {attribute_name1}")
+                    print("attribute_name of the application: ",attribute_name1)
                     
                     # Fetching l2_matched from doc1
                     l2_matched1 = policy1.get("l2_matched")
-                    logging.debug(f"l2_matched suggested by AI {l2_matched1}")
+                    print("l2_matched suggested by AI: ",l2_matched1)
 
                     l2matched2 = policy2.get("l2_matched")
-                    logging.debug(f"l2_matched given by admin {l2matched2}")
+                    print("l2_matched given by admin",l2matched2)
                     
                     # Finding the attribute in the global collection
                     pipeline = [
@@ -911,11 +837,11 @@ async def store_data(payload: dict, tenant: str = Header(None)):
 
                     #----------------------for storing new synonyms against the admin l2matched---------------------
                     attribute_name2 = policy2.get("attributeName").lower()
-                    logging.debug(f"attribute_name of the application {attribute_name2}")
+                    print("attribute_name of the application: ",attribute_name2)
                     
                     # Fetching l2_matched from doc2
                     l2_matched2 = policy2.get("l2_matched")
-                    logging.debug(f"l2_matched by admin {l2_matched2}")
+                    print("l2_matched by admin: ",l2_matched2)
 
                     new_synonym = {
                         "synonym": attribute_name2,
@@ -937,11 +863,11 @@ async def store_data(payload: dict, tenant: str = Header(None)):
                 elif policy1.get("matching_decision") == "synonyms" and policy2.get("matching_decision") == "synonyms" and policy1.get("l2_matched") == policy2.get("l2_matched"):
                     logging.debug(f" checking and updating score where policy1(AI) and policy2(admin) are equal.")
                     attribute_name = policy1.get("attributeName").lower()
-                    logging.debug(f"attribute_name of the application {attribute_name}")
+                    print("attribute_name of the application: ",attribute_name)
                     
                     # Fetching l2_matched from doc1
                     l2_matched = policy1.get("l2_matched")
-                    logging.debug(f"l2_matched suggested by AI {l2_matched}")
+                    print("l2_matched suggested by AI: ", l2_matched)
                     
                     # Finding the attribute in the global collection
                     pipeline = [
@@ -1009,11 +935,11 @@ async def store_data(payload: dict, tenant: str = Header(None)):
                     logging.debug(f" checking and updating where matching decision is empty string.")
                     
                     attribute_name2 = policy2.get("attributeName").lower()
-                    logging.debug(f"attribute_name of the application {attribute_name2}")
+                    print("attribute_name of the application: ",attribute_name2)
                     
                     # Fetching l2_matched from doc2
                     l2_matched2 = policy2.get("l2_matched")
-                    logging.debug(f"l2_matched by admin {l2_matched2}")
+                    print("l2_matched by admin: ",l2_matched2)
 
                     new_synonym = {
                         "synonym": attribute_name2,
@@ -1036,14 +962,9 @@ async def store_data(payload: dict, tenant: str = Header(None)):
 
         #compare fields and make calculation to update the in global collection
         return {"message": "Data saved successfully"}
-    except HTTPException:
-        raise
-    # except Exception as e:
-    #     print("faileddddddd")
     except Exception as e:
-        return ErrorResponseModel(error=str(e), code=500, message="Exception while running feedback.")   
-        #raise HTTPException(status_code=500, detail=str(e)) 
-        
+        print("faileddddddd")
+        raise HTTPException(status_code=500, detail=str(e)) 
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=5000, debug=True)
