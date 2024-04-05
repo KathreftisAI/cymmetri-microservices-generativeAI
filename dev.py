@@ -30,22 +30,22 @@ logging.basicConfig(
 )
 
 
-def ResponseModel(data, message, code=200, error_code=None):
+def ResponseModel(data, message, code=200, errorCode=None):
     return {
         "success": True,
         "data": data,
         "code": code,
         "message": message,
-        "error_code": error_code
+        "errorCode": errorCode
     }
 
-def ErrorResponseModel(data, success, code, message, error_code):
+def ErrorResponseModel(data, success, code, message, errorCode):
     return { 
         "data": None,
         "success": False,
         "code": code, 
         "message": message,
-        "error_code": error_code
+        "errorCode": errorCode
         }
 
 #--------- stored the payload as input----------
@@ -506,22 +506,20 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
 
         # Check if 'appId' and 'payload' are present in the request
         if 'appId' not in data:
-            return ErrorResponseModel(
-                data = None,
-                success= False,
-                code=400,
-                message="Missing 'appId' in request",
-                error_code="APPID_MISSING_ERROR"
-            )
+            response_val ={}
+            response_val["data"] = None
+            response_val["success"] = "false",
+            response_val["errorCode"] = "APPID_MISSING_ERROR",
+            response_val["message"] = "Missing 'appId' in request"
+            raise HTTPException(status_code=400, detail=response_val)
         
         elif 'payload' not in data:
-            return ErrorResponseModel(
-                data = None,
-                success= False,
-                code=400,
-                message="Missing 'payload' in request",
-                error_code="PAYLOAD_MISSING_ERROR"
-            )
+            response_val ={}
+            response_val["data"] = None
+            response_val["success"] = "false",
+            response_val["errorCode"] = "PAYLOAD_MISSING_ERROR",
+            response_val["message"] = "Missing 'payload' in request"
+            raise HTTPException(status_code=400, detail=response_val)
         
         # Validate the format of 'payload'
         if not isinstance(data['payload'], dict):
@@ -534,13 +532,12 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
                 data['payload'] = converted_payload
             else:
                 #raise HTTPException(status_code=400, detail="'payload' must be a dictionary or list")
-                return ErrorResponseModel(
-                data = None,
-                success= False,
-                code=400,
-                message="payload' must be a dictionary or list",
-                error_code="MUST_BE_DICT_OR_LIST"
-            )
+                response_val ={}
+                response_val["data"] = None
+                response_val["success"] = "false",
+                response_val["errorCode"] = "MUST_BE_DICT_OR_LIST",
+                response_val["message"] = "payload' must be a dictionary or list"
+                raise HTTPException(status_code=400, detail=response_val)
  
         json_data = data.get('payload')
 
@@ -733,23 +730,22 @@ async def map_fields_to_policy(payload: Dict[str, Any]):
 
         if not body:
             #raise HTTPException(status_code=400, detail="body empty")
-            return ErrorResponseModel(
-                data = None,
-                success= False,
-                code=400,
-                message="Missing 'body' in request",
-                error_code="BODY_MISSING_ERROR"
-            )
+            response_val ={}
+            response_val["data"] = None
+            response_val["success"] = "false",
+            response_val["errorCode"] = "BODY_MISSING_ERROR",
+            response_val["message"] = "Missing 'body' in request"
+            raise HTTPException(status_code=400, detail=response_val)
+            
         elif not policy_mapping:
             #raise HTTPException(status_code=400, detail="policy_mapping empty")
-            return ErrorResponseModel(
-                data = None,
-                success= False,
-                code=400,
-                message="Missing 'policy_mapping' in request",
-                error_code="POLICY_MAPPING_MISSING_ERROR"
-            )
-        
+            response_val ={}
+            response_val["data"] = None
+            response_val["success"] = "false",
+            response_val["code"] = 400,
+            response_val["errorCode"] = "POLICY_MAPPING_MISSING_ERROR",
+            response_val["message"] = "Missing 'policy_mapping' in request"
+            raise HTTPException(status_code=400, detail=response_val)
 
         mapped_data = {}
 
@@ -768,13 +764,11 @@ async def map_fields_to_policy(payload: Dict[str, Any]):
         return mapped_data
         #return ResponseModel(data=mapped_data, message="auto policy mapped generated successfully")
 
-    
     except HTTPException:
         raise
     except Exception as e:
         return ErrorResponseModel(error=str(e), code=500, message="Exception while running policy mappping.")
     
-
 #-------------------Api fpr storing the admin final policymap for training purpose-----------
 @app.post("/generativeaisrvc/feedback")
 async def store_data(payload: dict, tenant: str = Header(None)):
@@ -788,22 +782,21 @@ async def store_data(payload: dict, tenant: str = Header(None)):
         # Check if 'request_id' and 'policyMapList' are present in the request
         if not policyMapList :
             #raise HTTPException(status_code=400, detail="Missing 'payload' in request")
-            return ErrorResponseModel(
-                data = None,
-                success= False,
-                code=400,
-                message="Missing 'policyMapList' in request",
-                error_code="POLICYMAPLIST_MISSING"
-            )
+            response_val ={}
+            response_val["data"] = None
+            response_val["success"] = "false",
+            response_val["errorCode"] = "POLICYMAPLIST_MISSING",
+            response_val["message"] = "Missing 'policyMapList' in request"
+            raise HTTPException(status_code=400, detail=response_val)
+        
         elif not request_id :
             #raise HTTPException(status_code=400, detail="Missing 'request_id' in request")
-            return ErrorResponseModel(
-                data = None,
-                success= False,
-                code=400,
-                message="Missing 'request_id' in request",
-                error_code="REQUEST_ID_MISSING"
-            )
+            response_val ={}
+            response_val["data"] = None
+            response_val["success"] = "false",
+            response_val["errorCode"] = "REQUEST_ID_MISSING",
+            response_val["message"] = "Missing 'request_id' in request"
+            raise HTTPException(status_code=400, detail=response_val)
             
         
         logging.debug(f" The payload is {payload}")
