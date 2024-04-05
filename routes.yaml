@@ -1,7 +1,7 @@
 ---
 api: /v1/config/projects/{project}/routing/ingress/{id}
 meta:
-  id: generativeaiservice
+  id: generativeaiserviceGetPolicyMappedPOST
   project: unotech
 spec:
   modify:
@@ -52,7 +52,7 @@ type: ingress-route
 ---
 api: /v1/config/projects/{project}/routing/ingress/{id}
 meta:
-  id: generativeaiservice
+  id: generativeaiserviceMapFieldsToPolicy
   project: unotech
 spec:
   modify:
@@ -103,7 +103,7 @@ type: ingress-route
 ---
 api: /v1/config/projects/{project}/routing/ingress/{id}
 meta:
-  id: generativeaiservice
+  id: generativeaiserviceSetFeedback
   project: unotech
 spec:
   modify:
