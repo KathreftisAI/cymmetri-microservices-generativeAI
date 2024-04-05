@@ -567,6 +567,7 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
             #print("response_data:", response_data)
 
 
+
             l1 = [item['label'] for item in response_data]
 
             if isinstance(l1, str):

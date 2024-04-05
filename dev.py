@@ -53,6 +53,7 @@ def ErrorResponseModel(error, code, message, errorCode):
 def stored_input(tenant: str):
     return get_collection(tenant, "amaya_input")
 
+
 #--------------stored policymap for all users----------------
 def stored_response(tenant: str):
     return get_collection(tenant, "amaya_final_output")
@@ -454,6 +455,48 @@ def generate_final_response(similar_elements: List[Dict[str, Union[str, int, flo
     
     return final_response
 
+def map_field_to_policy(field: str, policy_mapping: List[Dict[str, Any]]) -> str:
+    matched = False
+    # Perform case-insensitive exact match
+    for map_entry in policy_mapping:
+        external_field = map_entry["external"]
+        internal_field = map_entry["internal"]
+        if external_field.lower() == field.lower():
+            matched = True
+            print(f"Exact match found: '{field}' -> '{external_field}'")
+            return external_field, f"${{{external_field}}}"  # Use placeholder syntax
+    
+    # Perform fuzzy matching if no direct match is found
+    best_match, score = process.extractOne(field.lower(), [map_entry["internal"].lower() for map_entry in policy_mapping])
+    if score >= 70:  # Adjust the threshold as needed
+        for map_entry in policy_mapping:
+            if map_entry["internal"].lower() == best_match:
+                matched = True
+                print(f"Fuzzy match found: '{field}' -> '{map_entry['external']}' (Best match: '{best_match}')")
+                return map_entry['external'], f"${{{map_entry['external']}}}"  # Use placeholder syntax
+    
+    if not matched:
+        print(f"No match found for '{field}'")
+    return field, None  # Return original field if no match is found
+
+
+def map_nested_fields_to_policy(nested_field: Dict[str, Any], policy_mapping: List[Dict[str, Any]]) -> Dict[str, Any]:
+    mapped_nested_data = {}
+    for field, value in nested_field.items():
+        if isinstance(value, dict):
+            # Recursively map nested fields
+            mapped_nested_data[field] = map_nested_fields_to_policy(value, policy_mapping)
+        else:
+            # Map non-nested fields
+            mapped_field, placeholder = map_field_to_policy(field, policy_mapping)
+            if placeholder is not None:
+                mapped_nested_data[field] = placeholder
+            else:
+                mapped_nested_data[field] = value
+    return mapped_nested_data
+
+
+
 
 #--------------- for mapping the body in body populating api------------------
 def map_field_to_policy(field: str, policy_mapping: List[Dict[str, Any]]) -> str:
@@ -505,6 +548,7 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
     try:
 
         synonyms_collection = get_master_collection("amayaSynonymsMaster")
+
         input_collection =  stored_input(tenant)
         output_collection =  stored_response(tenant)
         subset_collection = stored_policy_mapped(tenant)
@@ -513,6 +557,7 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
         
         # Store the received response directly into the input collection
         #input_collection.insert_one(data)
+
 
         #logging.debug("Input respone saved successfully")
 
@@ -557,6 +602,7 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
 
         #print("json data is {}", json_data)
 
+
         json_data_ = extract_user_data(json_data)
 
         if json_data_:
@@ -567,59 +613,42 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
             #print("response_data:", response_data)
 
 
-            l1 = [item['label'] for item in response_data]
-
-            if isinstance(l1, str):
-                l1_list = set(convert_string_to_list(l1))
-                logging.info(f"list1: {l1_list}")
-            else:
-                #l1_list = remove_underscores_from_set(l1)
-                l1_list = set(l1)
-                #l1_list = set(l1_list)
-                logging.info(f"list1: {l1_list}")
+        if isinstance(l1, str):
+            l1_list = set(convert_string_to_list(l1))
+            print("list1: ",l1_list)
+        else:
+            l1_list = set(l1)
+            print("list1: ",l1_list)
 
 
+        l2 = ['department', 'employeeId', 'designation', 'appUpdatedDate', 'displayName', 'mobile', 'country', 'city', 'email', 'end_date', 'firstName', 'login', 'lastName', 'userType', 'dateOfBirth', 'endDate', 'startDate', 'password', 'status', 'profilePicture', 'appUserId', 'landline']
 
-            l2 = ['department', 'employeeId', 'designation', 'appUpdatedDate', 'displayName', 'mobile', 'country', 'city', 'email', 'end_date', 'firstName', 'middleName', 'login', 'lastName', 'userType', 'dateOfBirth', 'endDate', 'startDate', 'password', 'status', 'profilePicture', 'appUserId', 'landline']
-
-            l2_datatypes = {
-                            'department': 'STRING',
-                            'employeeId': 'STRING',
-                            'designation': 'STRING',
-                            'appUpdatedDate': 'DATETIME',
-                            'displayName': 'STRING',    
-                            'mobile': 'STRING',
-                            'country': 'STRING',
-                            'city': 'STRING',
-                            'email': 'STRING',
-                            'end_date': 'DATE',
-                            'firstName': 'STRING',
-                            'middleName': 'STRING',
-                            'login': 'STRING',
-                            'lastName': 'STRING',
-                            'userType': 'STRING',
-                            'end_date': 'DATE',
-                            'login': 'STRING',
-                            'userType': 'STRING',
-                            'dateOfBirth': 'DATE',
-                            'endDate': 'DATE',
-                            'startDate': 'DATE',
-                            'password': 'password',
-                            'status': 'STRING',
-                            'profilePicture': 'profilePicture',
-                            'appUserId': 'STRING',
-                            'landline': 'STRING'
-                        }
-            
-            l2, l2_datatypes, custom_attributes = add_custom_attributes_to_list(l2, l2_datatypes, tenant)
-
-            #print("custom attributes: ", custom_attributes)
-            for attribute in custom_attributes:
-                preprocess_attribute = re.sub(r'[^a-zA-Z0-9]', '', attribute).lower()
-
-                new_synonym = {
-                        "synonym": preprocess_attribute,
-                        "score": 1
+        l2_datatypes = {
+                        'department': 'STRING',
+                        'employeeId': 'STRING',
+                        'designation': 'STRING',
+                        'appUpdatedDate': 'DATETIME',
+                        'displayName': 'STRING',    
+                        'mobile': 'STRING',
+                        'country': 'STRING',
+                        'city': 'STRING',
+                        'email': 'STRING',
+                        'end_date': 'DATE',
+                        'firstName': 'STRING',
+                        'login': 'INTEGER',
+                        'lastName': 'STRING',
+                        'userType': 'STRING',
+                        'end_date': 'DATE',
+                        'login': 'INTEGER',
+                        'userType': 'STRING',
+                        'dateOfBirth': 'DATE',
+                        'endDate': 'DATE',
+                        'startDate': 'DATE',
+                        'password': 'password',
+                        'status': 'STRING',
+                        'profilePicture': 'profilePicture',
+                        'appUserId': 'STRING',
+                        'landline': 'STRING'
                     }
                 synonyms_collection.update_one(
                         {},
@@ -727,40 +756,57 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
             return ResponseModel(data=data_response, message="Policy mapping generated successfully")
         
         else:
-            logging.info(f" Failed to extract the data from the response")
-    
-    except HTTPException:
-        raise 
+            l2_list = l2
 
-    except Exception as e:
-        return ErrorResponseModel(error=str(e), code=500, message="Exception while running policy mappping.")
-    
-#------- Api for body populating----------
-@app.post("/generativeaisrvc/map_fields_to_policy")
-async def map_fields_to_policy(payload: Dict[str, Any]):
-    logging.debug(f"API call for auto fill policy for create/update user.")
+        threshold = 60
 
-    try:
-        body = payload.get("body")
-        policy_mapping = payload.get("policyMapping")
+        result = compare_lists_with_fuzzy(l1_list, l2_list, threshold)
 
-        if not body:
-            response_val = {
-                "data": None,
-                "success": False,
-                "errorCode": "BODY_MISSING_ERROR",
-                "message": "Missing 'body' in request"
-            }
-            return create_bad_request_response(response_val)
-            #return Response(content=json.dumps(response_val),status_code=status.HTTP_400_BAD_REQUEST,headers={'Content-Type':'application/json'})
-        
+        final_response = generate_final_response(result['similar_elements'], response_data, l2_datatypes)
+        final_response_dict = {"final_response": final_response}
 
-        elif not policy_mapping:
-            response_val = {
-                "data": None,
-                "success": False,
-                "errorCode": "POLICY_MAPPING_MISSING_ERROR",
-                "message": "Missing 'policy_mapping' in request"
+        # Assuming 'appId' is present in the received response
+        appId = data.get("appId")
+        final_response_dict['appId'] = appId
+
+        output_collection.update_one(
+            {"appId": appId},
+            {"$set": final_response_dict},
+            upsert=True
+        )
+
+        subset_response = output_collection.aggregate([
+            {"$unwind": "$final_response"},
+            {"$match": {"final_response.value": {"$ne": None}, "appId": appId}}, 
+            {"$group": {
+                "_id": "$final_response.attributeName",
+                "data": {"$first": "$final_response"}
+            }},
+            {"$project": {
+                "_id": 0,
+                "jsonPath": "$data.jsonPath",
+                "attributeName": "$data.attributeName",
+                "l1_datatype": "$data.l1_datatype",
+                "l2_matched": "$data.l2_matched",
+                "l2_datatype": "$data.l2_datatype",
+                "value": "$data.value",
+                "similarity_percentage": "$data.similarity_percentage",
+                "confidence": "$data.confidence"
+            }}
+        ])
+
+        subset_response_data = list(subset_response)
+
+        # Serialize each document into a JSON serializable format
+        json_serializable_response = []
+        for doc in subset_response_data:
+            json_serializable_doc = {
+                "jsonPath": doc["jsonPath"],
+                "attributeName": doc["attributeName"],
+                "l1_datatype": doc["l1_datatype"],
+                "l2_matched": doc["l2_matched"],
+                "l2_datatype": doc["l2_datatype"],
+                "value": doc["value"]
             }
             return create_bad_request_response(response_val)
             #raise HTTPException(400, detail=response_val)
@@ -1040,9 +1086,34 @@ async def store_data(payload: dict, tenant: str = Header(None)):
     # except Exception as e:
     #     print("faileddddddd")
     except Exception as e:
-        return ErrorResponseModel(error=str(e), code=500, message="Exception while running feedback.")   
-        #raise HTTPException(status_code=500, detail=str(e)) 
-        
+        raise HTTPException(status_code=500, detail=str(e))
+    
+
+@app.post("/generativeaisrvc/map_fields_to_policy/")
+async def map_fields_to_policy(payload: Dict[str, Any]):
+    body = payload.get("body")
+    policy_mapping = payload.get("policyMapping")
+
+    if not body or not policy_mapping:
+        raise HTTPException(status_code=400, detail="Body and policyMapping are required in the payload")
+
+    mapped_data = {}
+
+    for field, value in body.items():
+        if isinstance(value, dict):
+            # If the value is a dictionary (nested object), map its nested fields
+            mapped_data[field] = map_nested_fields_to_policy(value, policy_mapping)
+        else:
+            # Map non-nested fields
+            mapped_field, placeholder = map_field_to_policy(field, policy_mapping)
+            if placeholder is not None:
+                mapped_data[field] = placeholder
+            else:
+                mapped_data[field] = value
+
+    return mapped_data
+
+
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=5000, debug=True)
