@@ -39,13 +39,14 @@ def ResponseModel(data, message, code=200, errorCode=None):
         "errorCode": errorCode
     }
 
-def ErrorResponseModel(data, success, code, message, errorCode):
+def ErrorResponseModel(error, code, message, errorCode):
     return { 
         "data": None,
         "success": False,
         "code": code, 
         "message": message,
-        "errorCode": errorCode
+        "errorCode": errorCode,
+        "error": error
         }
 
 #--------- stored the payload as input----------
@@ -729,23 +730,22 @@ async def map_fields_to_policy(payload: Dict[str, Any]):
         policy_mapping = payload.get("policyMapping")
 
         if not body:
-            #raise HTTPException(status_code=400, detail="body empty")
-            response_val ={}
-            response_val["data"] = None
-            response_val["success"] = "false",
-            response_val["errorCode"] = "BODY_MISSING_ERROR",
-            response_val["message"] = "Missing 'body' in request"
-            raise HTTPException(status_code=400, detail=response_val)
+            response_val = {
+                "data": None,
+                "success": False,
+                "errorCode": "BODY_MISSING_ERROR",
+                "message": "Missing 'body' in request"
+            }
+            raise HTTPException(400, detail=response_val)
             
         elif not policy_mapping:
-            #raise HTTPException(status_code=400, detail="policy_mapping empty")
-            response_val ={}
-            response_val["data"] = None
-            response_val["success"] = "false",
-            response_val["code"] = 400,
-            response_val["errorCode"] = "POLICY_MAPPING_MISSING_ERROR",
-            response_val["message"] = "Missing 'policy_mapping' in request"
-            raise HTTPException(status_code=400, detail=response_val)
+            response_val = {
+                "data": None,
+                "success": False,
+                "errorCode": "POLICY_MAPPING_MISSING_ERROR",
+                "message": "Missing 'policy_mapping' in request"
+            }
+            raise HTTPException(400, detail=response_val)
 
         mapped_data = {}
 
@@ -767,8 +767,9 @@ async def map_fields_to_policy(payload: Dict[str, Any]):
     except HTTPException:
         raise
     except Exception as e:
-        return ErrorResponseModel(error=str(e), code=500, message="Exception while running policy mappping.")
-    
+        return ErrorResponseModel(error=str(e), code=500, message="Exception while running policy mappping.", errorCode= "Invalid")
+
+
 #-------------------Api fpr storing the admin final policymap for training purpose-----------
 @app.post("/generativeaisrvc/feedback")
 async def store_data(payload: dict, tenant: str = Header(None)):
