@@ -192,12 +192,12 @@ def get_distinct_keys_and_datatypes(json_data):
                     else:
                         datatype = get_data_type(value)
                         distinct_keys_datatypes.append({
-                        "jsonpath": new_path,
-                        # Construct the label using parent keys if path is nested
-                        "label": ".".join(new_path.split(".")[1:]) if "." in new_path else key,
-                        "datatype": datatype,
-                        "value": value
-                    })
+                            "jsonpath": new_path,
+                            # Construct the label using parent keys if path is nested
+                            "label": ".".join(new_path.split(".")[1:]) if "." in new_path else key,
+                            "datatype": datatype,
+                            "value": value
+                        })
             elif isinstance(obj, list):
                 if not obj:  # Check if the list is empty
                     datatype = 'ARRAY'
@@ -208,17 +208,19 @@ def get_distinct_keys_and_datatypes(json_data):
                         "value": obj
                     })
                 else:
+                    new_path = path
+                    if not path:
+                        path = "root"
                     for index, item in enumerate(obj):
-                        new_path = f"{path}.{index}" if path else str(index)
                         if isinstance(item, dict) or isinstance(item, list):
                             explore_json(item, new_path)
                         else:
                             datatype = get_data_type(item)
                             distinct_keys_datatypes.append({
                                 "jsonpath": new_path,
-                                "label": f"Index {index}",
+                                "label": path,
                                 "datatype": datatype,
-                                "value": item
+                                "value": obj
                             })
 
         def get_data_type(value):
@@ -565,7 +567,6 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
             response_data = get_distinct_keys_and_datatypes(json_data_)
             #response_data=list(response_data.values())
             #print("response_data:", response_data)
-
 
 
             l1 = [item['label'] for item in response_data]
