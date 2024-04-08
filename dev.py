@@ -767,19 +767,24 @@ async def map_fields_to_policy(payload: Dict[str, Any]):
             return create_bad_request_response(response_val)
             #raise HTTPException(400, detail=response_val)
 
+        json_data = extract_user_data(body)
+        json_data = json.dumps(json_data)
+        json_data_ = json.loads(json_data)
+
         mapped_data = {}
 
-        for field, value in body.items():
-            if isinstance(value, dict):
-                # If the value is a dictionary (nested object), map its nested fields
-                mapped_data[field] = map_nested_fields_to_policy(value, policy_mapping)
-            else:
-                # Map non-nested fields
-                mapped_field, placeholder = map_field_to_policy(field, policy_mapping)
-                if placeholder is not None:
-                    mapped_data[field] = placeholder
+        for item in json_data_:
+            for field, value in item.items():
+                if isinstance(value, dict):
+                    # If the value is a dictionary (nested object), map its nested fields
+                    mapped_data[field] = map_nested_fields_to_policy(value, policy_mapping)
                 else:
-                    mapped_data[field] = value
+                    # Map non-nested fields
+                    mapped_field, placeholder = map_field_to_policy(field, policy_mapping)
+                    if placeholder is not None:
+                        mapped_data[field] = placeholder
+                    else:
+                        mapped_data[field] = value
 
         return mapped_data
         #return ResponseModel(data=mapped_data, message="auto policy mapped generated successfully")
