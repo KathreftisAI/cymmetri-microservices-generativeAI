@@ -798,7 +798,7 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
     except Exception as e:
         return ErrorResponseModel(error=str(e), code=500, message="Exception while running policy mappping.", errorCode= "Invalid")
 
-    
+
 #------- Api for body populating----------
 @app.post("/generativeaisrvc/map_fields_to_policy")
 async def map_fields_to_policy(payload: Dict[str, Any]):
@@ -917,10 +917,11 @@ async def store_data(payload: dict, tenant: str = Header(None)):
 
         if doc1 and doc2:
             for policy1, policy2 in zip(doc1["policyMapList"], doc2["policyMapList"]):
-                # print("policy1: ",policy1)
-                # print("policy2: ",policy2)
+                logging.debug(f"policy1: {policy1}")
+                logging.debug(f"policy2: {policy2}")
                 
-                if policy1.get("matching_decision") == "synonyms" and policy2.get("matching_decision") == "synonyms" and policy1.get("l2_matched") != policy2.get("l2_matched"):
+                #if policy1.get("matching_decision") == "synonyms" and policy2.get("matching_decision") == "synonyms" and policy1.get("l2_matched") != policy2.get("l2_matched"):
+                if policy1.get("matching_decision") == "synonyms" and policy2.get("matching_decision") == "synonyms" and policy1.get("attributeName") == policy2.get("attributeName") and policy1.get("l2_matched") != policy2.get("l2_matched"):
                     logging.debug(f" checking and updating score where policy1(AI) and policy2(admin) are not equal.")
                     #Fetching attributeName from doc1
                     attribute_name1 = policy1.get("attributeName").lower()
