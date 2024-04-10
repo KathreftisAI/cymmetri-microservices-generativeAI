@@ -17,13 +17,13 @@ def map_field_to_policy(field: str, policy_mapping: List[Dict[str, Any]]) -> str
             return external_field, f"${{{external_field}}}"  # Use placeholder syntax
     
     # Perform fuzzy matching if no direct match is found
-    best_match, score = process.extractOne(field.lower(), [map_entry["internal"].lower() for map_entry in policy_mapping])
-    if score >= 70:  # Adjust the threshold as needed
-        for map_entry in policy_mapping:
-            if map_entry["internal"].lower() == best_match:
-                matched = True
-                print(f"Fuzzy match found: '{field}' -> '{map_entry['external']}' (Best match: '{best_match}')")
-                return map_entry['external'], f"${{{map_entry['external']}}}"  # Use placeholder syntax
+    # best_match, score = process.extractOne(field.lower(), [map_entry["internal"].lower() for map_entry in policy_mapping])
+    # if score >= 70:  # Adjust the threshold as needed
+    #     for map_entry in policy_mapping:
+    #         if map_entry["internal"].lower() == best_match:
+    #             matched = True
+    #             print(f"Fuzzy match found: '{field}' -> '{map_entry['external']}' (Best match: '{best_match}')")
+    #             return map_entry['external'], f"${{{map_entry['external']}}}"  # Use placeholder syntax
     
     if not matched:
         print(f"No match found for '{field}'")

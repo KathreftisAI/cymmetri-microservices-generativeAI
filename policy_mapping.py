@@ -470,13 +470,15 @@ def map_field_to_policy(field: str, policy_mapping: List[Dict[str, Any]]) -> str
             return external_field, f"${{{external_field}}}"  # Use placeholder syntax
     
     # Perform fuzzy matching if no direct match is found
-    best_match, score = process.extractOne(field.lower(), [map_entry["internal"].lower() for map_entry in policy_mapping])
-    if score >= 70:  # Adjust the threshold as needed
-        for map_entry in policy_mapping:
-            if map_entry["internal"].lower() == best_match:
-                matched = True
-                logging.debug(f"Fuzzy match found: '{field}' -> '{map_entry['external']}' (Best match: '{best_match}')")
-                return map_entry['external'], f"${{{map_entry['external']}}}"  # Use placeholder syntax
+    # best_match, score = process.extractOne(field.lower(), [map_entry["internal"].lower() for map_entry in policy_mapping])
+    # logging.debug(f"best match: {best_match}")
+    # logging.debug(f"score: {score}")
+    # if score >= 70:  # Adjust the threshold as needed
+    #     for map_entry in policy_mapping:
+    #         if map_entry["internal"].lower() == best_match:
+    #             matched = True
+    #             logging.debug(f"Fuzzy match found: '{field}' -> '{map_entry['external']}' (Best match: '{best_match}')")
+    #             return map_entry['external'], f"${{{map_entry['external']}}}"  # Use placeholder syntax
     
     if not matched:
         logging.debug(f"No match found for '{field}'")
@@ -500,6 +502,53 @@ def map_nested_fields_to_policy(nested_field: Dict[str, Any], policy_mapping: Li
     return mapped_nested_data
 
 
+#--------for formating the output in specified way
+def combine_data(body, mapped_data):
+    combined_data = {}
+
+    # Iterate over keys in the body
+    for key, value in body.items():
+        if isinstance(value, list) and value:  # If value is a non-empty list
+            # Handle list of dictionaries
+            combined_data[key] = []
+            for item in value:
+                mapped_item = {}
+                # Iterate over key-value pairs in each dictionary
+                for sub_key, sub_value in item.items():
+                    if sub_value:  # Use the original value if it exists
+                        mapped_item[sub_key] = sub_value
+                    elif sub_key in mapped_data:  # Use the mapped value if it exists
+                        mapped_item[sub_key] = mapped_data[sub_key]
+                    else:
+                        mapped_item[sub_key] = ""
+                combined_data[key].append(mapped_item)
+        else:
+            # Handle non-list values
+            combined_data[key] = value if value else mapped_data.get(key, "")
+
+    return combined_data
+
+#-------for comapring the body and mapped_data for returning the output
+def compare_json_structure(json1, json2):
+  if type(json1) != type(json2):
+    return False  # Different data types (dict vs list)
+
+  if isinstance(json1, dict) and isinstance(json2, dict):
+    return len(json1) == len(json2)  # Compare number of keys
+
+  if isinstance(json1, list) and isinstance(json2, list):
+    if len(json1) != len(json2):
+      return False
+    # Recursively compare elements in the list
+    for item1, item2 in zip(json1, json2):
+      if not compare_json_structure(item1, item2):
+        return False
+    return True
+
+  return False
+
+
+
 #----------------------api for policy mapping-----------------------------
 @app.post('/generativeaisrvc/get_policy_mapped')
 async def get_mapped(data: dict, tenant: str = Header(...)):
@@ -517,9 +566,20 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
         #input_collection.insert_one(data)
 
         #logging.debug("Input respone saved successfully")
+        
+
+        # response_val = {
+        #     "data": None,
+        #     "success": False,
+        #     "errorCode": "",
+        #     "message": ""
+        # }
+
+        appId = data.get("appId")
+        payload = data.get("payload")
 
         # Check if 'appId' and 'payload' are present in the request
-        if 'appId' not in data:
+        if not appId:
             response_val = {
                 "data": None,
                 "success": False,
@@ -528,7 +588,8 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
             }
             return create_bad_request_response(response_val)
         
-        elif 'payload' not in data:
+        
+        elif not payload:
             response_val = {
                 "data": None,
                 "success": False,
@@ -538,22 +599,22 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
             return create_bad_request_response(response_val)
         
         # Validate the format of 'payload'
-        if not isinstance(data['payload'], dict):
-            if isinstance(data['payload'], list):
-                # Convert list of dictionaries to a single dictionary
-                converted_payload = {}
-                for item in data['payload']:
-                    for key, value in item.items():
-                        converted_payload[key] = value
-                data['payload'] = converted_payload
-            else:
-                response_val = {
-                "data": None,
-                "success": False,
-                "errorCode": "MUST_BE_DICT_OR_LIST",
-                "message": "payload' must be a dictionary or list"
-                }
-            return create_bad_request_response(response_val)
+        # if not isinstance(data['payload'], dict):
+        #     if isinstance(data['payload'], list):
+        #         # Convert list of dictionaries to a single dictionary
+        #         converted_payload = {}
+        #         for item in data['payload']:
+        #             for key, value in item.items():
+        #                 converted_payload[key] = value
+        #         data['payload'] = converted_payload
+        #     else:
+        #         response_val = {
+        #         "data": None,
+        #         "success": False,
+        #         "errorCode": "MUST_BE_DICT_OR_LIST",
+        #         "message": "payload' must be a dictionary or list"
+        #         }
+        #     return create_bad_request_response(response_val)
  
         json_data = data.get('payload')
 
@@ -735,7 +796,8 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
         raise 
 
     except Exception as e:
-        return ErrorResponseModel(error=str(e), code=500, message="Exception while running policy mappping.")
+        return ErrorResponseModel(error=str(e), code=500, message="Exception while running policy mappping.", errorCode= "Invalid")
+
     
 #------- Api for body populating----------
 @app.post("/generativeaisrvc/map_fields_to_policy")
@@ -771,6 +833,8 @@ async def map_fields_to_policy(payload: Dict[str, Any]):
         json_data = json.dumps(json_data)
         json_data_ = json.loads(json_data)
 
+        print("json_data: ",json_data_)
+
         mapped_data = {}
 
         for item in json_data_:
@@ -786,13 +850,22 @@ async def map_fields_to_policy(payload: Dict[str, Any]):
                     else:
                         mapped_data[field] = value
 
-        return mapped_data
-        #return ResponseModel(data=mapped_data, message="auto policy mapped generated successfully")
+        #print("mapped_data: ", mapped_data)
+
+        result = compare_json_structure(body, mapped_data)
+        
+
+        if result == False:
+            combined_data = combine_data(body, mapped_data)
+            return combined_data
+        else:
+            return mapped_data
 
     except HTTPException:
         raise
     except Exception as e:
         return ErrorResponseModel(error=str(e), code=500, message="Exception while running autofill policy.", errorCode= "Invalid")
+
 
 #-------------------Api fpr storing the admin final policymap for training purpose-----------
 @app.post("/generativeaisrvc/feedback")
@@ -1053,3 +1126,4 @@ async def store_data(payload: dict, tenant: str = Header(None)):
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=5000, debug=True)
+
