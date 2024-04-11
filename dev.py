@@ -152,7 +152,7 @@ def extract_user_data(response):
             # Convert keys in the object to lowercase for case-insensitive comparison
             lower_case_obj_keys = {key.lower() for key in obj.keys()}
             # Define user data keys in lowercase
-            user_keys = {'displayname', 'givenname', 'email', 'id', 'dateofbirth', 'mobile', 'firstname'}
+            user_keys = {'displayname', 'givenname', 'email', 'id', 'dateofbirth', 'mobile', 'firstname', 'name', 'password'}
             # Check if object contains at least one of the common user data keys, ignoring case
             return any(key in lower_case_obj_keys for key in user_keys)
 
@@ -469,16 +469,16 @@ def map_field_to_policy(field: str, policy_mapping: List[Dict[str, Any]]) -> str
             logging.debug(f"Exact match found: '{field}' -> '{external_field}'")
             return external_field, f"${{{external_field}}}"  # Use placeholder syntax
     
-    # Perform fuzzy matching if no direct match is found
-    # best_match, score = process.extractOne(field.lower(), [map_entry["internal"].lower() for map_entry in policy_mapping])
-    # logging.debug(f"best match: {best_match}")
-    # logging.debug(f"score: {score}")
-    # if score >= 70:  # Adjust the threshold as needed
-    #     for map_entry in policy_mapping:
-    #         if map_entry["internal"].lower() == best_match:
-    #             matched = True
-    #             logging.debug(f"Fuzzy match found: '{field}' -> '{map_entry['external']}' (Best match: '{best_match}')")
-    #             return map_entry['external'], f"${{{map_entry['external']}}}"  # Use placeholder syntax
+    #Perform fuzzy matching if no direct match is found
+    best_match, score = process.extractOne(field.lower(), [map_entry["internal"].lower() for map_entry in policy_mapping])
+    logging.debug(f"best match: {best_match}")
+    logging.debug(f"score: {score}")
+    if score >= 70:  # Adjust the threshold as needed
+        for map_entry in policy_mapping:
+            if map_entry["internal"].lower() == best_match:
+                matched = True
+                logging.debug(f"Fuzzy match found: '{field}' -> '{map_entry['external']}' (Best match: '{best_match}')")
+                return map_entry['external'], f"${{{map_entry['external']}}}"  # Use placeholder syntax
     
     if not matched:
         logging.debug(f"No match found for '{field}'")
@@ -503,6 +503,31 @@ def map_nested_fields_to_policy(nested_field: Dict[str, Any], policy_mapping: Li
 
 
 #--------for formating the output in specified way
+# def combine_data(body, mapped_data):
+#     combined_data = {}
+
+#     # Iterate over keys in the body
+#     for key, value in body.items():
+#         if isinstance(value, list) and value:  # If value is a non-empty list
+#             # Handle list of dictionaries
+#             combined_data[key] = []
+#             for item in value:
+#                 mapped_item = {}
+#                 # Iterate over key-value pairs in each dictionary
+#                 for sub_key, sub_value in item.items():
+#                     if sub_value:  # Use the original value if it exists
+#                         mapped_item[sub_key] = sub_value
+#                     elif sub_key in mapped_data:  # Use the mapped value if it exists
+#                         mapped_item[sub_key] = mapped_data[sub_key]
+#                     else:
+#                         mapped_item[sub_key] = ""
+#                 combined_data[key].append(mapped_item)
+#         else:
+#             # Handle non-list values
+#             combined_data[key] = value if value else mapped_data.get(key, "")
+
+#     return combined_data
+
 def combine_data(body, mapped_data):
     combined_data = {}
 
@@ -524,9 +549,17 @@ def combine_data(body, mapped_data):
                 combined_data[key].append(mapped_item)
         else:
             # Handle non-list values
-            combined_data[key] = value if value else mapped_data.get(key, "")
+            mapped_item = {}
+            for sub_key, sub_value in mapped_data.items():
+                if sub_key in body:  # Use the original value if it exists
+                    mapped_item[sub_key] = body[sub_key]
+                else:
+                    mapped_item[sub_key] = sub_value
+            combined_data[key] = mapped_item
 
     return combined_data
+
+
 
 #-------for comapring the body and mapped_data for returning the output
 def compare_json_structure(json1, json2):
@@ -850,7 +883,7 @@ async def map_fields_to_policy(payload: Dict[str, Any]):
                     else:
                         mapped_data[field] = value
 
-        #print("mapped_data: ", mapped_data)
+        print("mapped_data: ", mapped_data)
 
         result = compare_json_structure(body, mapped_data)
         
@@ -1132,6 +1165,7 @@ async def store_data(payload: dict, tenant: str = Header(None)):
         return ErrorResponseModel(error=str(e), code=500, message="Exception while running feedback.", errorCode= "Invalid")   
         #raise HTTPException(status_code=500, detail=str(e)) 
         
+
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=5000, debug=True)
