@@ -798,7 +798,7 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
     except Exception as e:
         return ErrorResponseModel(error=str(e), code=500, message="Exception while running policy mappping.", errorCode= "Invalid")
 
-    
+
 #------- Api for body populating----------
 @app.post("/generativeaisrvc/map_fields_to_policy")
 async def map_fields_to_policy(payload: Dict[str, Any]):
@@ -915,203 +915,212 @@ async def store_data(payload: dict, tenant: str = Header(None)):
         #query global collection
         synonyms_collection = get_master_collection("amayaSynonymsMaster")
 
-        if doc1 and doc2:
-            for policy1, policy2 in zip(doc1["policyMapList"], doc2["policyMapList"]):
-                # print("policy1: ",policy1)
-                # print("policy2: ",policy2)
-                
-                if policy1.get("matching_decision") == "synonyms" and policy2.get("matching_decision") == "synonyms" and policy1.get("l2_matched") != policy2.get("l2_matched"):
-                    logging.debug(f" checking and updating score where policy1(AI) and policy2(admin) are not equal.")
-                    #Fetching attributeName from doc1
-                    attribute_name1 = policy1.get("attributeName").lower()
-                    logging.debug(f"attribute_name of the application {attribute_name1}")
-                    
-                    # Fetching l2_matched from doc1
-                    l2_matched1 = policy1.get("l2_matched")
-                    logging.debug(f"l2_matched suggested by AI {l2_matched1}")
+        # Convert policyMapList to dictionaries keyed by attributeName
+        policy_map_1 = {item['attributeName']: item for item in doc1['policyMapList']}
+        policy_map_2 = {item['attributeName']: item for item in doc2['policyMapList']}
 
-                    l2matched2 = policy2.get("l2_matched")
-                    logging.debug(f"l2_matched given by admin {l2matched2}")
-                    
-                    # Finding the attribute in the global collection
-                    pipeline = [
-                        {
-                            "$match": {
-                                f"synonyms.{l2_matched1}.synonym": attribute_name1
-                            }
-                        },
-                        {
-                            "$project": {
-                                "_id": 0,
-                                "synonyms": {
-                                    "$filter": {
-                                        "input": f"$synonyms.{l2_matched1}",
-                                        "as": "item",
-                                        "cond": { "$eq": ["$$item.synonym", attribute_name1] }
-                                    }
+        # Iterate over common attributeNames
+        common_keys = set(policy_map_1.keys()) & set(policy_map_2.keys())
+        for key in common_keys:
+            policy1 = policy_map_1[key]
+            policy2 = policy_map_2[key]
+
+            logging.debug(f"Matching policy1: {policy1}")
+            logging.debug(f"Matching policy2: {policy2}")
+                
+            if policy1.get("matching_decision") == "synonyms" and policy2.get("matching_decision") == "synonyms" and policy1.get("l2_matched") != policy2.get("l2_matched"):
+            #if policy1.get("matching_decision") == "synonyms" and policy2.get("matching_decision") == "synonyms" and policy1.get("attributeName") == policy2.get("attributeName") and policy1.get("l2_matched") != policy2.get("l2_matched"):
+                logging.debug(f" checking and updating score where policy1(AI) and policy2(admin) are not equal.")
+                #Fetching attributeName from doc1
+                attribute_name1 = policy1.get("attributeName").lower()
+                logging.debug(f"attribute_name of the application {attribute_name1}")
+                
+                # Fetching l2_matched from doc1
+                l2_matched1 = policy1.get("l2_matched")
+                logging.debug(f"l2_matched suggested by AI {l2_matched1}")
+
+                l2matched2 = policy2.get("l2_matched")
+                logging.debug(f"l2_matched given by admin {l2matched2}")
+                
+                # Finding the attribute in the global collection
+                pipeline = [
+                    {
+                        "$match": {
+                            f"synonyms.{l2_matched1}.synonym": attribute_name1
+                        }
+                    },
+                    {
+                        "$project": {
+                            "_id": 0,
+                            "synonyms": {
+                                "$filter": {
+                                    "input": f"$synonyms.{l2_matched1}",
+                                    "as": "item",
+                                    "cond": { "$eq": ["$$item.synonym", attribute_name1] }
                                 }
                             }
-                        },
-                        {
-                            "$unwind": "$synonyms"
                         }
-                    ]
-
-                    global_docs = synonyms_collection.aggregate(pipeline)
-
-                    for global_doc in global_docs:
-                        synonyms = global_doc.get("synonyms", {})
-                        if synonyms:
-                            # Accessing the score and updating it
-                            score = global_doc['synonyms']['score']
-                            new_score = score - 0.2
-                            # Updating the global collection with the new score
-                            synonyms_collection.update_one(
-                                {
-                                    f"synonyms.{l2_matched1}.synonym": str(attribute_name1)
-                                },
-                                {
-                                    "$set": {
-                                        f"synonyms.{l2_matched1}.$[elem].score": float(new_score)
-                                    }
-                                },
-                                array_filters=[
-                                    {
-                                        "elem.synonym": str(attribute_name1)
-                                    }
-                                ],
-                                upsert= True
-                            )
-
-                            logging.debug(f"Updated score for {attribute_name1} to {new_score} score, since the suggestion given {l2_matched1} was wrong by AI.")
-                            logging.debug(f"End of calculation logic.")
-                        else:
-                            logging.debug("No 'synonyms' found in the document.")
-
-                    #----------------------for storing new synonyms against the admin l2matched---------------------
-                    attribute_name2 = policy2.get("attributeName").lower()
-                    logging.debug(f"attribute_name of the application {attribute_name2}")
-                    
-                    # Fetching l2_matched from doc2
-                    l2_matched2 = policy2.get("l2_matched")
-                    logging.debug(f"l2_matched by admin {l2_matched2}")
-
-                    new_synonym = {
-                        "synonym": attribute_name2,
-                        "score": 1
+                    },
+                    {
+                        "$unwind": "$synonyms"
                     }
-                    synonyms_collection.update_one(
-                        {},
-                        {
-                            "$addToSet": {
-                                f"synonyms.{l2_matched2}": new_synonym
-                            }
-                        },
-                        upsert=True
-                    )
+                ]
 
-                    logging.debug(f"Inserted new synonym as suggested by admin: {new_synonym}")
-                    logging.debug(f"End of calculation logic")
+                global_docs = synonyms_collection.aggregate(pipeline)
+
+                for global_doc in global_docs:
+                    synonyms = global_doc.get("synonyms", {})
+                    if synonyms:
+                        # Accessing the score and updating it
+                        score = global_doc['synonyms']['score']
+                        new_score = score - 0.2
+                        # Updating the global collection with the new score
+                        synonyms_collection.update_one(
+                            {
+                                f"synonyms.{l2_matched1}.synonym": str(attribute_name1)
+                            },
+                            {
+                                "$set": {
+                                    f"synonyms.{l2_matched1}.$[elem].score": float(new_score)
+                                }
+                            },
+                            array_filters=[
+                                {
+                                    "elem.synonym": str(attribute_name1)
+                                }
+                            ],
+                            upsert= True
+                        )
+
+                        logging.debug(f"Updated score for {attribute_name1} to {new_score} score, since the suggestion given {l2_matched1} was wrong by AI.")
+                        logging.debug(f"End of calculation logic.")
+                    else:
+                        logging.debug("No 'synonyms' found in the document.")
+
+                #----------------------for storing new synonyms against the admin l2matched---------------------
+                attribute_name2 = policy2.get("attributeName").lower()
+                logging.debug(f"attribute_name of the application {attribute_name2}")
                 
-                elif policy1.get("matching_decision") == "synonyms" and policy2.get("matching_decision") == "synonyms" and policy1.get("l2_matched") == policy2.get("l2_matched"):
-                    logging.debug(f" checking and updating score where policy1(AI) and policy2(admin) are equal.")
-                    attribute_name = policy1.get("attributeName").lower()
-                    logging.debug(f"attribute_name of the application {attribute_name}")
-                    
-                    # Fetching l2_matched from doc1
-                    l2_matched = policy1.get("l2_matched")
-                    logging.debug(f"l2_matched suggested by AI {l2_matched}")
-                    
-                    # Finding the attribute in the global collection
-                    pipeline = [
-                        {
-                            "$match": {
-                                f"synonyms.{l2_matched}.synonym": attribute_name
-                            }
-                        },
-                        {
-                            "$project": {
-                                "_id": 0,
-                                "synonyms": {
-                                    "$filter": {
-                                        "input": f"$synonyms.{l2_matched}",
-                                        "as": "item",
-                                        "cond": { "$eq": ["$$item.synonym", attribute_name] }
-                                    }
+                # Fetching l2_matched from doc2
+                l2_matched2 = policy2.get("l2_matched")
+                logging.debug(f"l2_matched by admin {l2_matched2}")
+
+                new_synonym = {
+                    "synonym": attribute_name2,
+                    "score": 1
+                }
+                synonyms_collection.update_one(
+                    {},
+                    {
+                        "$addToSet": {
+                            f"synonyms.{l2_matched2}": new_synonym
+                        }
+                    },
+                    upsert=True
+                )
+
+                logging.debug(f"Inserted new synonym as suggested by admin: {new_synonym}")
+                logging.debug(f"End of calculation logic")
+            
+            elif policy1.get("matching_decision") == "synonyms" and policy2.get("matching_decision") == "synonyms" and policy1.get("l2_matched") == policy2.get("l2_matched"):
+                logging.debug(f" checking and updating score where policy1(AI) and policy2(admin) are equal.")
+                attribute_name = policy1.get("attributeName").lower()
+                logging.debug(f"attribute_name of the application {attribute_name}")
+                
+                # Fetching l2_matched from doc1
+                l2_matched = policy1.get("l2_matched")
+                logging.debug(f"l2_matched suggested by AI {l2_matched}")
+                
+                # Finding the attribute in the global collection
+                pipeline = [
+                    {
+                        "$match": {
+                            f"synonyms.{l2_matched}.synonym": attribute_name
+                        }
+                    },
+                    {
+                        "$project": {
+                            "_id": 0,
+                            "synonyms": {
+                                "$filter": {
+                                    "input": f"$synonyms.{l2_matched}",
+                                    "as": "item",
+                                    "cond": { "$eq": ["$$item.synonym", attribute_name] }
                                 }
                             }
-                        },
-                        {
-                            "$unwind": "$synonyms"
                         }
-                    ]
-
-                    global_docs = synonyms_collection.aggregate(pipeline)
-
-                    for global_doc in global_docs:
-
-                        synonyms = global_doc.get("synonyms", {})
-                        if synonyms:
-
-                            score = global_doc['synonyms']['score']
-
-                            if score is not None and score == 1:
-                                new_score = 1  # If the current score is already 1, keep it unchanged
-                            else:
-                                new_score = score + 0.2
-
-                            # Updating the global collection with the new score
-                            synonyms_collection.update_one(
-                                {
-                                    f"synonyms.{l2_matched}.synonym": str(attribute_name)
-                                },
-                                {
-                                    "$set": {
-                                        f"synonyms.{l2_matched}.$[elem].score": float(new_score)
-                                    }
-                                },
-                                array_filters=[
-                                    {
-                                        "elem.synonym": str(attribute_name)
-                                    }
-                                ],
-                                upsert= True
-                            )
-
-                            logging.debug(f"Updated score for {attribute_name} to {new_score} score, since the suggestion given {l2_matched} was right by AI.")
-                            logging.debug(f"End of calculation logic.")
-
-                        else:
-                            logging.debug("No 'synonyms' found in the document.")
-
-                elif policy1.get("matching_decision") == "" and policy2.get("matching_decision") == "" and policy2.get("l2_matched")!= "":
-                    logging.debug(f" checking and updating where matching decision is empty string.")
-                    
-                    attribute_name2 = policy2.get("attributeName").lower()
-                    logging.debug(f"attribute_name of the application {attribute_name2}")
-                    
-                    # Fetching l2_matched from doc2
-                    l2_matched2 = policy2.get("l2_matched")
-                    logging.debug(f"l2_matched by admin {l2_matched2}")
-
-                    new_synonym = {
-                        "synonym": attribute_name2,
-                        "score": 1
+                    },
+                    {
+                        "$unwind": "$synonyms"
                     }
-                    synonyms_collection.update_one(
-                        {},
-                        {
-                            "$addToSet": {
-                                f"synonyms.{l2_matched2}": new_synonym
-                            }
-                        },
-                        upsert=True
-                    )
-                    logging.debug(f"Inserted new synonym: {new_synonym}.")
-                    logging.debug(f"End of calculation logic.")
+                ]
 
-                else:
-                    logging.debug("no need to analyze and changed.")
+                global_docs = synonyms_collection.aggregate(pipeline)
+
+                for global_doc in global_docs:
+
+                    synonyms = global_doc.get("synonyms", {})
+                    if synonyms:
+
+                        score = global_doc['synonyms']['score']
+
+                        if score is not None and score == 1:
+                            new_score = 1  # If the current score is already 1, keep it unchanged
+                        else:
+                            new_score = score + 0.2
+
+                        # Updating the global collection with the new score
+                        synonyms_collection.update_one(
+                            {
+                                f"synonyms.{l2_matched}.synonym": str(attribute_name)
+                            },
+                            {
+                                "$set": {
+                                    f"synonyms.{l2_matched}.$[elem].score": float(new_score)
+                                }
+                            },
+                            array_filters=[
+                                {
+                                    "elem.synonym": str(attribute_name)
+                                }
+                            ],
+                            upsert= True
+                        )
+
+                        logging.debug(f"Updated score for {attribute_name} to {new_score} score, since the suggestion given {l2_matched} was right by AI.")
+                        logging.debug(f"End of calculation logic.")
+
+                    else:
+                        logging.debug("No 'synonyms' found in the document.")
+
+            elif policy1.get("matching_decision") == "" and policy2.get("matching_decision") == "" and policy2.get("l2_matched")!= "":
+                logging.debug(f" checking and updating where matching decision is empty string.")
+                
+                attribute_name2 = policy2.get("attributeName").lower()
+                logging.debug(f"attribute_name of the application {attribute_name2}")
+                
+                # Fetching l2_matched from doc2
+                l2_matched2 = policy2.get("l2_matched")
+                logging.debug(f"l2_matched by admin {l2_matched2}")
+
+                new_synonym = {
+                    "synonym": attribute_name2,
+                    "score": 1
+                }
+                synonyms_collection.update_one(
+                    {},
+                    {
+                        "$addToSet": {
+                            f"synonyms.{l2_matched2}": new_synonym
+                        }
+                    },
+                    upsert=True
+                )
+                logging.debug(f"Inserted new synonym: {new_synonym}.")
+                logging.debug(f"End of calculation logic.")
+
+            else:
+                logging.debug("no need to analyze and changed.")
 
         #compare fields and make calculation to update the in global collection
         return {"message": "Data saved successfully"}
@@ -1120,7 +1129,7 @@ async def store_data(payload: dict, tenant: str = Header(None)):
     # except Exception as e:
     #     print("faileddddddd")
     except Exception as e:
-        return ErrorResponseModel(error=str(e), code=500, message="Exception while running feedback.")   
+        return ErrorResponseModel(error=str(e), code=500, message="Exception while running feedback.", errorCode= "Invalid")   
         #raise HTTPException(status_code=500, detail=str(e)) 
         
 
