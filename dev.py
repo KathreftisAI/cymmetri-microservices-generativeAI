@@ -501,85 +501,19 @@ def map_nested_fields_to_policy(nested_field: Dict[str, Any], policy_mapping: Li
                 mapped_nested_data[field] = value
     return mapped_nested_data
 
-
-#--------for formating the output in specified way
-# def combine_data(body, mapped_data):
-#     combined_data = {}
-
-#     # Iterate over keys in the body
-#     for key, value in body.items():
-#         if isinstance(value, list) and value:  # If value is a non-empty list
-#             # Handle list of dictionaries
-#             combined_data[key] = []
-#             for item in value:
-#                 mapped_item = {}
-#                 # Iterate over key-value pairs in each dictionary
-#                 for sub_key, sub_value in item.items():
-#                     if sub_value:  # Use the original value if it exists
-#                         mapped_item[sub_key] = sub_value
-#                     elif sub_key in mapped_data:  # Use the mapped value if it exists
-#                         mapped_item[sub_key] = mapped_data[sub_key]
-#                     else:
-#                         mapped_item[sub_key] = ""
-#                 combined_data[key].append(mapped_item)
-#         else:
-#             # Handle non-list values
-#             combined_data[key] = value if value else mapped_data.get(key, "")
-
-#     return combined_data
-
-def combine_data(body, mapped_data):
-    combined_data = {}
-
-    # Iterate over keys in the body
-    for key, value in body.items():
-        if isinstance(value, list) and value:  # If value is a non-empty list
-            # Handle list of dictionaries
-            combined_data[key] = []
-            for item in value:
-                mapped_item = {}
-                # Iterate over key-value pairs in each dictionary
-                for sub_key, sub_value in item.items():
-                    if sub_value:  # Use the original value if it exists
-                        mapped_item[sub_key] = sub_value
-                    elif sub_key in mapped_data:  # Use the mapped value if it exists
-                        mapped_item[sub_key] = mapped_data[sub_key]
-                    else:
-                        mapped_item[sub_key] = ""
-                combined_data[key].append(mapped_item)
-        else:
-            # Handle non-list values
-            mapped_item = {}
-            for sub_key, sub_value in mapped_data.items():
-                if sub_key in body:  # Use the original value if it exists
-                    mapped_item[sub_key] = body[sub_key]
-                else:
-                    mapped_item[sub_key] = sub_value
-            combined_data[key] = mapped_item
-
-    return combined_data
-
-
-
-#-------for comapring the body and mapped_data for returning the output
-def compare_json_structure(json1, json2):
-  if type(json1) != type(json2):
-    return False  # Different data types (dict vs list)
-
-  if isinstance(json1, dict) and isinstance(json2, dict):
-    return len(json1) == len(json2)  # Compare number of keys
-
-  if isinstance(json1, list) and isinstance(json2, list):
-    if len(json1) != len(json2):
-      return False
-    # Recursively compare elements in the list
-    for item1, item2 in zip(json1, json2):
-      if not compare_json_structure(item1, item2):
-        return False
-    return True
-
-  return False
-
+#----------for replacing the values in body
+def replace_values_with_placeholders(body, mapped_data):
+    if isinstance(body, dict):
+        for key, value in body.items():
+            if key in mapped_data:
+                body[key] = mapped_data[key]
+            else:
+                replace_values_with_placeholders(value, mapped_data)
+    elif isinstance(body, list):
+        for i, item in enumerate(body):
+            if isinstance(item, dict) or isinstance(item, list):
+                replace_values_with_placeholders(item, mapped_data)
+    return body
 
 
 #----------------------api for policy mapping-----------------------------
@@ -600,13 +534,6 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
 
         #logging.debug("Input respone saved successfully")
         
-
-        # response_val = {
-        #     "data": None,
-        #     "success": False,
-        #     "errorCode": "",
-        #     "message": ""
-        # }
 
         appId = data.get("appId")
         payload = data.get("payload")
@@ -849,9 +776,7 @@ async def map_fields_to_policy(payload: Dict[str, Any]):
                 "message": "Missing 'body' in request"
             }
             return create_bad_request_response(response_val)
-            #return Response(content=json.dumps(response_val),status_code=status.HTTP_400_BAD_REQUEST,headers={'Content-Type':'application/json'})
         
-
         elif not policy_mapping:
             response_val = {
                 "data": None,
@@ -860,39 +785,29 @@ async def map_fields_to_policy(payload: Dict[str, Any]):
                 "message": "Missing 'policy_mapping' in request"
             }
             return create_bad_request_response(response_val)
-            #raise HTTPException(400, detail=response_val)
 
         json_data = extract_user_data(body)
         json_data = json.dumps(json_data)
         json_data_ = json.loads(json_data)
-
-        print("json_data: ",json_data_)
 
         mapped_data = {}
 
         for item in json_data_:
             for field, value in item.items():
                 if isinstance(value, dict):
-                    # If the value is a dictionary (nested object), map its nested fields
                     mapped_data[field] = map_nested_fields_to_policy(value, policy_mapping)
                 else:
-                    # Map non-nested fields
                     mapped_field, placeholder = map_field_to_policy(field, policy_mapping)
                     if placeholder is not None:
                         mapped_data[field] = placeholder
                     else:
                         mapped_data[field] = value
+        data = replace_values_with_placeholders(body, mapped_data)
 
-        print("mapped_data: ", mapped_data)
 
-        result = compare_json_structure(body, mapped_data)
-        
+        return data
+        #return ResponseModel(data=data, message="Autofill executed successfully")
 
-        if result == False:
-            combined_data = combine_data(body, mapped_data)
-            return combined_data
-        else:
-            return mapped_data
 
     except HTTPException:
         raise
@@ -1168,5 +1083,4 @@ async def store_data(payload: dict, tenant: str = Header(None)):
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=5000, debug=True)
-
+    uvicorn.run(app, host="0.0.0.0", port=5000)
