@@ -827,8 +827,8 @@ async def map_fields_to_policy(payload: Dict[str, Any]):
         data = replace_values_with_placeholders(body, mapped_data)
 
 
-        return data
-        #return ResponseModel(data=data, message="Autofill executed successfully")
+        #return data
+        return ResponseModel(data=data, message="Autofill executed successfully")
 
 
     except HTTPException:
