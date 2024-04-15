@@ -502,19 +502,41 @@ def map_nested_fields_to_policy(nested_field: Dict[str, Any], policy_mapping: Li
     return mapped_nested_data
 
 #----------for replacing the values in body
+# def replace_values_with_placeholders(body, mapped_data):
+#     if isinstance(body, dict):
+#         for key, value in body.items():
+#             if key in mapped_data:
+#                 body[key] = mapped_data[key]
+#             else:
+#                 replace_values_with_placeholders(value, mapped_data)
+#     elif isinstance(body, list):
+#         for i, item in enumerate(body):
+#             if isinstance(item, dict) or isinstance(item, list):
+#                 replace_values_with_placeholders(item, mapped_data)
+#     return body
+
 def replace_values_with_placeholders(body, mapped_data):
     if isinstance(body, dict):
         for key, value in body.items():
             if key in mapped_data:
-                body[key] = mapped_data[key]
+                # Check if the original type in body is a list
+                if isinstance(value, list):
+                    # Replace but maintain the list structure
+                    body[key] = [mapped_data[key]]
+                else:
+                    # Direct replacement for other types (mostly strings)
+                    body[key] = mapped_data[key]
             else:
+                # Recurse into nested structures
                 replace_values_with_placeholders(value, mapped_data)
     elif isinstance(body, list):
         for i, item in enumerate(body):
-            if isinstance(item, dict) or isinstance(item, list):
+            # Since we handle non-dict or non-list items at a higher level,
+            # just recursively call the function for dicts and lists
+            if isinstance(item, (dict, list)):
                 replace_values_with_placeholders(item, mapped_data)
-    return body
 
+    return body
 
 #----------------------api for policy mapping-----------------------------
 @app.post('/generativeaisrvc/get_policy_mapped')
