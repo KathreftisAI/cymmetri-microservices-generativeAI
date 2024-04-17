@@ -501,19 +501,6 @@ def map_nested_fields_to_policy(nested_field: Dict[str, Any], policy_mapping: Li
                 mapped_nested_data[field] = value
     return mapped_nested_data
 
-#----------for replacing the values in body
-# def replace_values_with_placeholders(body, mapped_data):
-#     if isinstance(body, dict):
-#         for key, value in body.items():
-#             if key in mapped_data:
-#                 body[key] = mapped_data[key]
-#             else:
-#                 replace_values_with_placeholders(value, mapped_data)
-#     elif isinstance(body, list):
-#         for i, item in enumerate(body):
-#             if isinstance(item, dict) or isinstance(item, list):
-#                 replace_values_with_placeholders(item, mapped_data)
-#     return body
 
 def replace_values_with_placeholders(body, mapped_data):
     if isinstance(body, dict):
@@ -521,22 +508,25 @@ def replace_values_with_placeholders(body, mapped_data):
             if key in mapped_data:
                 # Check if the original type in body is a list
                 if isinstance(value, list):
-                    # Replace but maintain the list structure
-                    body[key] = [mapped_data[key]]
+                    # Replace but check if mapped_data[key] is also a list
+                    if isinstance(mapped_data[key], list):
+                        body[key] = mapped_data[key]
+                    else:
+                        # Wrap non-list data from mapped_data in a list
+                        body[key] = [mapped_data[key]]
                 else:
-                    # Direct replacement for other types (mostly strings)
+                    # Direct replacement for other types
                     body[key] = mapped_data[key]
             else:
                 # Recurse into nested structures
                 replace_values_with_placeholders(value, mapped_data)
     elif isinstance(body, list):
         for i, item in enumerate(body):
-            # Since we handle non-dict or non-list items at a higher level,
-            # just recursively call the function for dicts and lists
             if isinstance(item, (dict, list)):
                 replace_values_with_placeholders(item, mapped_data)
 
     return body
+
 
 #----------------------api for policy mapping-----------------------------
 @app.post('/generativeaisrvc/get_policy_mapped')
@@ -824,6 +814,8 @@ async def map_fields_to_policy(payload: Dict[str, Any]):
                         mapped_data[field] = placeholder
                     else:
                         mapped_data[field] = value
+
+        print("mapped_data: ",mapped_data)
         data = replace_values_with_placeholders(body, mapped_data)
 
 
