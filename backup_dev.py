@@ -3,7 +3,7 @@ from fastapi import FastAPI, Form, Request, HTTPException, Header
 import httpx
 import json
 import logging
-from fastapi import FastAPI, Form
+from fastapi import FastAPI, Form, Response, status
 from fastapi.responses import JSONResponse
 from fuzzywuzzy import fuzz
 from typing import List, Union
@@ -30,16 +30,24 @@ logging.basicConfig(
 )
 
 
-def ResponseModel(data, message, code=200, error_code=None):
+def ResponseModel(data, message, code=200, errorCode=None):
     return {
+        "success": True,
         "data": data,
         "code": code,
         "message": message,
-        "error_code": error_code
+        "errorCode": errorCode
     }
 
-def ErrorResponseModel(error, code, message):
-    return {"error": error, "code": code, "message": message}
+def ErrorResponseModel(error, code, message, errorCode):
+    return { 
+        "data": None,
+        "success": False,
+        "code": code, 
+        "message": message,
+        "errorCode": errorCode,
+        "error": error
+        }
 
 #--------- stored the payload as input----------
 def stored_input(tenant: str):
@@ -100,6 +108,14 @@ def generate_request_id():
     id = uuid.uuid1()
     return id.hex
 
+#-------------for badrequest---------
+def create_bad_request_response(response_val):
+    return Response(
+        content=json.dumps(response_val),
+        status_code=status.HTTP_400_BAD_REQUEST,
+        headers={'Content-Type': 'application/json'}
+    )
+
 #--------------for adding custome attributes in cymmetri field list------------
 def add_custom_attributes_to_list(l2, l2_datatypes, tenant):
 
@@ -136,7 +152,7 @@ def extract_user_data(response):
             # Convert keys in the object to lowercase for case-insensitive comparison
             lower_case_obj_keys = {key.lower() for key in obj.keys()}
             # Define user data keys in lowercase
-            user_keys = {'displayname', 'givenname', 'email', 'id', 'dateofbirth', 'mobile', 'firstname'}
+            user_keys = {'displayname', 'givenname', 'email', 'id', 'dateofbirth', 'mobile', 'firstname', 'name', 'password'}
             # Check if object contains at least one of the common user data keys, ignoring case
             return any(key in lower_case_obj_keys for key in user_keys)
 
@@ -176,12 +192,12 @@ def get_distinct_keys_and_datatypes(json_data):
                     else:
                         datatype = get_data_type(value)
                         distinct_keys_datatypes.append({
-                        "jsonpath": new_path,
-                        # Construct the label using parent keys if path is nested
-                        "label": ".".join(new_path.split(".")[1:]) if "." in new_path else key,
-                        "datatype": datatype,
-                        "value": value
-                    })
+                            "jsonpath": new_path,
+                            # Construct the label using parent keys if path is nested
+                            "label": ".".join(new_path.split(".")[1:]) if "." in new_path else key,
+                            "datatype": datatype,
+                            "value": value
+                        })
             elif isinstance(obj, list):
                 if not obj:  # Check if the list is empty
                     datatype = 'ARRAY'
@@ -192,17 +208,19 @@ def get_distinct_keys_and_datatypes(json_data):
                         "value": obj
                     })
                 else:
+                    new_path = path
+                    if not path:
+                        path = "root"
                     for index, item in enumerate(obj):
-                        new_path = f"{path}.{index}" if path else str(index)
                         if isinstance(item, dict) or isinstance(item, list):
                             explore_json(item, new_path)
                         else:
                             datatype = get_data_type(item)
                             distinct_keys_datatypes.append({
                                 "jsonpath": new_path,
-                                "label": f"Index {index}",
+                                "label": path,
                                 "datatype": datatype,
-                                "value": item
+                                "value": obj
                             })
 
         def get_data_type(value):
@@ -303,7 +321,10 @@ def compare_lists_with_fuzzy(l1, l2, threshold, synonyms_collection):
                 ])
                 if data:
                     for document in data:
-                        matching_element_l2 = document.get('key', None)
+                        key = document.get('key', None)
+                        if key is not None and key in l2:
+                            matching_element_l2 = key
+                        #matching_element_l2 = document.get('key', None)
                         synonyms = document.get('synonyms', [])
                         max_similarity = None
                         if synonyms:
@@ -375,6 +396,7 @@ def get_confidence_level(similarity_score: float, score_collection) -> str:
             return "Unknown"  # No matching range found, return Unknown
     except Exception as e:
        raise HTTPException(status_code=400, detail="score_collection_error")
+       
 
 
 #----------------------generates final response---------------
@@ -447,8 +469,10 @@ def map_field_to_policy(field: str, policy_mapping: List[Dict[str, Any]]) -> str
             logging.debug(f"Exact match found: '{field}' -> '{external_field}'")
             return external_field, f"${{{external_field}}}"  # Use placeholder syntax
     
-    # Perform fuzzy matching if no direct match is found
+    #Perform fuzzy matching if no direct match is found
     best_match, score = process.extractOne(field.lower(), [map_entry["internal"].lower() for map_entry in policy_mapping])
+    logging.debug(f"best match: {best_match}")
+    logging.debug(f"score: {score}")
     if score >= 70:  # Adjust the threshold as needed
         for map_entry in policy_mapping:
             if map_entry["internal"].lower() == best_match:
@@ -477,6 +501,70 @@ def map_nested_fields_to_policy(nested_field: Dict[str, Any], policy_mapping: Li
                 mapped_nested_data[field] = value
     return mapped_nested_data
 
+#----------for replacing the values in body str replacement
+# def replace_values_with_placeholders(body, mapped_data):
+#     if isinstance(body, dict):
+#         for key, value in body.items():
+#             if key in mapped_data:
+#                 body[key] = mapped_data[key]
+#             else:
+#                 replace_values_with_placeholders(value, mapped_data)
+#     elif isinstance(body, list):
+#         for i, item in enumerate(body):
+#             if isinstance(item, dict) or isinstance(item, list):
+#                 replace_values_with_placeholders(item, mapped_data)
+#     return body
+
+#------------- old function issues with businessPhones logic
+# def replace_values_with_placeholders(body, mapped_data):
+#     if isinstance(body, dict):
+#         for key, value in body.items():
+#             if key in mapped_data:
+#                 # Check if the original type in body is a list
+#                 if isinstance(value, list):
+#                     # Replace but maintain the list structure
+#                     body[key] = mapped_data[key]
+#                 else:
+#                     # Direct replacement for other types (mostly strings)
+#                     body[key] = mapped_data[key]
+#             else:
+#                 # Recurse into nested structures
+#                 replace_values_with_placeholders(value, mapped_data)
+#     elif isinstance(body, list):
+#         for i, item in enumerate(body):
+#             # Since we handle non-dict or non-list items at a higher level,
+#             # just recursively call the function for dicts and lists
+#             if isinstance(item, (dict, list)):
+#                 replace_values_with_placeholders(item, mapped_data)
+#
+#    return body
+
+#------------for replacing values in body
+def replace_values_with_placeholders(body, mapped_data):
+    if isinstance(body, dict):
+        for key, value in body.items():
+            if key in mapped_data:
+                # Check if the original type in body is a list
+                if isinstance(value, list):
+                    # Replace but check if mapped_data[key] is also a list
+                    if isinstance(mapped_data[key], list):
+                        body[key] = mapped_data[key]
+                    else:
+                        # Wrap non-list data from mapped_data in a list
+                        body[key] = [mapped_data[key]]
+                else:
+                    # Direct replacement for other types
+                    body[key] = mapped_data[key]
+            else:
+                # Recurse into nested structures
+                replace_values_with_placeholders(value, mapped_data)
+    elif isinstance(body, list):
+        for i, item in enumerate(body):
+            if isinstance(item, (dict, list)):
+                replace_values_with_placeholders(item, mapped_data)
+
+    return body
+
 
 #----------------------api for policy mapping-----------------------------
 @app.post('/generativeaisrvc/get_policy_mapped')
@@ -495,24 +583,48 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
         #input_collection.insert_one(data)
 
         #logging.debug("Input respone saved successfully")
+        
+
+        appId = data.get("appId")
+        payload = data.get("payload")
 
         # Check if 'appId' and 'payload' are present in the request
-        if 'appId' not in data:
-            raise HTTPException(status_code=400, detail="Missing 'appId' in request")
-        elif 'payload' not in data:
-            raise HTTPException(status_code=400, detail="Missing 'payload' in request")
-
+        if not appId:
+            response_val = {
+                "data": None,
+                "success": False,
+                "errorCode": "APPID_MISSING_ERROR",
+                "message": "Missing 'appId' in request"
+            }
+            return create_bad_request_response(response_val)
+        
+        
+        elif not payload:
+            response_val = {
+                "data": None,
+                "success": False,
+                "errorCode": "PAYLOAD_MISSING_ERROR",
+                "message": "Missing 'payload' in request"
+            }
+            return create_bad_request_response(response_val)
+        
         # Validate the format of 'payload'
-        if not isinstance(data['payload'], dict):
-            if isinstance(data['payload'], list):
-                # Convert list of dictionaries to a single dictionary
-                converted_payload = {}
-                for item in data['payload']:
-                    for key, value in item.items():
-                        converted_payload[key] = value
-                data['payload'] = converted_payload
-            else:
-                raise HTTPException(status_code=400, detail="'payload' must be a dictionary or list")        
+        # if not isinstance(data['payload'], dict):
+        #     if isinstance(data['payload'], list):
+        #         # Convert list of dictionaries to a single dictionary
+        #         converted_payload = {}
+        #         for item in data['payload']:
+        #             for key, value in item.items():
+        #                 converted_payload[key] = value
+        #         data['payload'] = converted_payload
+        #     else:
+        #         response_val = {
+        #         "data": None,
+        #         "success": False,
+        #         "errorCode": "MUST_BE_DICT_OR_LIST",
+        #         "message": "payload' must be a dictionary or list"
+        #         }
+        #     return create_bad_request_response(response_val)
  
         json_data = data.get('payload')
 
@@ -694,41 +806,65 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
         raise 
 
     except Exception as e:
-        return ErrorResponseModel(error=str(e), code=500, message="Exception while running policy mappping.")
-    
+        return ErrorResponseModel(error=str(e), code=500, message="Exception while running policy mappping.", errorCode= "Invalid")
+
+
 #------- Api for body populating----------
 @app.post("/generativeaisrvc/map_fields_to_policy")
 async def map_fields_to_policy(payload: Dict[str, Any]):
+    logging.debug(f"API call for auto fill policy for create/update user.")
+
     try:
         body = payload.get("body")
         policy_mapping = payload.get("policyMapping")
 
         if not body:
-            raise HTTPException(status_code=400, detail="body empty")
+            response_val = {
+                "data": None,
+                "success": False,
+                "errorCode": "BODY_MISSING_ERROR",
+                "message": "Missing 'body' in request"
+            }
+            return create_bad_request_response(response_val)
+        
         elif not policy_mapping:
-            raise HTTPException(status_code=400, detail="policy_mapping empty")
+            response_val = {
+                "data": None,
+                "success": False,
+                "errorCode": "POLICY_MAPPING_MISSING_ERROR",
+                "message": "Missing 'policy_mapping' in request"
+            }
+            return create_bad_request_response(response_val)
+
+        json_data = extract_user_data(body)
+        json_data = json.dumps(json_data)
+        json_data_ = json.loads(json_data)
 
         mapped_data = {}
 
-        for field, value in body.items():
-            if isinstance(value, dict):
-                # If the value is a dictionary (nested object), map its nested fields
-                mapped_data[field] = map_nested_fields_to_policy(value, policy_mapping)
-            else:
-                # Map non-nested fields
-                mapped_field, placeholder = map_field_to_policy(field, policy_mapping)
-                if placeholder is not None:
-                    mapped_data[field] = placeholder
+        for item in json_data_:
+            for field, value in item.items():
+                if isinstance(value, dict):
+                    mapped_data[field] = map_nested_fields_to_policy(value, policy_mapping)
                 else:
-                    mapped_data[field] = value
+                    mapped_field, placeholder = map_field_to_policy(field, policy_mapping)
+                    if placeholder is not None:
+                        mapped_data[field] = placeholder
+                    else:
+                        mapped_data[field] = value
 
-        return mapped_data
-    
+        print("mapped_data: ",mapped_data)
+        data = replace_values_with_placeholders(body, mapped_data)
+
+
+        #return data
+        return ResponseModel(data=data, message="Autofill executed successfully")
+
+
     except HTTPException:
         raise
     except Exception as e:
-        return ErrorResponseModel(error=str(e), code=500, message="Exception while running mapping field.")
-    
+        return ErrorResponseModel(error=str(e), code=500, message="Exception while running autofill policy.", errorCode= "Invalid")
 
 
 #-------------------Api fpr storing the admin final policymap for training purpose-----------
@@ -738,11 +874,28 @@ async def store_data(payload: dict, tenant: str = Header(None)):
 
     logging.debug(f"working on tenant: {tenant}")
     try:
-        # Check if 'request_id' and 'payload' are present in the request
-        if payload is None:
-            raise HTTPException(status_code=400, detail="Missing 'payload' in request")
-        elif 'request_id' not in payload:
-            raise HTTPException(status_code=400, detail="Missing 'request_id' in request")
+        request_id = payload.get("request_id")
+        policyMapList = payload.get("policyMapList")
+
+        # Check if 'request_id' and 'policyMapList' are present in the request
+        if not policyMapList :
+            response_val = {
+                "data": None,
+                "success": False,
+                "errorCode": "POLICYMAPLIST_MISSING",
+                "message": "Missing 'policyMapList' in request"
+            }
+            return create_bad_request_response(response_val)
+        
+        elif not request_id :
+            response_val = {
+                "data": None,
+                "success": False,
+                "errorCode": "REQUEST_ID_MISSING",
+                "message": "Missing 'request_id' in request"
+            }
+            return create_bad_request_response(response_val)
+            
         
         logging.debug(f" The payload is {payload}")
         request_id = payload.get("request_id")
@@ -762,209 +915,224 @@ async def store_data(payload: dict, tenant: str = Header(None)):
         #query global collection
         synonyms_collection = get_master_collection("amayaSynonymsMaster")
 
-        if doc1 and doc2:
-            for policy1, policy2 in zip(doc1["policyMapList"], doc2["policyMapList"]):
-                # print("policy1: ",policy1)
-                # print("policy2: ",policy2)
-                
-                if policy1.get("matching_decision") == "synonyms" and policy2.get("matching_decision") == "synonyms" and policy1.get("l2_matched") != policy2.get("l2_matched"):
-                    logging.debug(f" checking and updating score where policy1(AI) and policy2(admin) are not equal.")
-                    #Fetching attributeName from doc1
-                    attribute_name1 = policy1.get("attributeName").lower()
-                    print("attribute_name of the application: ",attribute_name1)
-                    
-                    # Fetching l2_matched from doc1
-                    l2_matched1 = policy1.get("l2_matched")
-                    print("l2_matched suggested by AI: ",l2_matched1)
+        # Convert policyMapList to dictionaries keyed by attributeName
+        policy_map_1 = {item['attributeName']: item for item in doc1['policyMapList']}
+        policy_map_2 = {item['attributeName']: item for item in doc2['policyMapList']}
 
-                    l2matched2 = policy2.get("l2_matched")
-                    print("l2_matched given by admin",l2matched2)
-                    
-                    # Finding the attribute in the global collection
-                    pipeline = [
-                        {
-                            "$match": {
-                                f"synonyms.{l2_matched1}.synonym": attribute_name1
-                            }
-                        },
-                        {
-                            "$project": {
-                                "_id": 0,
-                                "synonyms": {
-                                    "$filter": {
-                                        "input": f"$synonyms.{l2_matched1}",
-                                        "as": "item",
-                                        "cond": { "$eq": ["$$item.synonym", attribute_name1] }
-                                    }
+        # Iterate over common attributeNames
+        common_keys = set(policy_map_1.keys()) & set(policy_map_2.keys())
+        for key in common_keys:
+            policy1 = policy_map_1[key]
+            policy2 = policy_map_2[key]
+
+            logging.debug(f"Matching policy1: {policy1}")
+            logging.debug(f"Matching policy2: {policy2}")
+                
+            if policy1.get("matching_decision") == "synonyms" and policy2.get("matching_decision") == "synonyms" and policy1.get("l2_matched") != policy2.get("l2_matched"):
+            #if policy1.get("matching_decision") == "synonyms" and policy2.get("matching_decision") == "synonyms" and policy1.get("attributeName") == policy2.get("attributeName") and policy1.get("l2_matched") != policy2.get("l2_matched"):
+                logging.debug(f" checking and updating score where policy1(AI) and policy2(admin) are not equal.")
+                #Fetching attributeName from doc1
+                attribute_name1 = policy1.get("attributeName").lower()
+                logging.debug(f"attribute_name of the application {attribute_name1}")
+                
+                # Fetching l2_matched from doc1
+                l2_matched1 = policy1.get("l2_matched")
+                logging.debug(f"l2_matched suggested by AI {l2_matched1}")
+
+                l2matched2 = policy2.get("l2_matched")
+                logging.debug(f"l2_matched given by admin {l2matched2}")
+                
+                # Finding the attribute in the global collection
+                pipeline = [
+                    {
+                        "$match": {
+                            f"synonyms.{l2_matched1}.synonym": attribute_name1
+                        }
+                    },
+                    {
+                        "$project": {
+                            "_id": 0,
+                            "synonyms": {
+                                "$filter": {
+                                    "input": f"$synonyms.{l2_matched1}",
+                                    "as": "item",
+                                    "cond": { "$eq": ["$$item.synonym", attribute_name1] }
                                 }
                             }
-                        },
-                        {
-                            "$unwind": "$synonyms"
                         }
-                    ]
-
-                    global_docs = synonyms_collection.aggregate(pipeline)
-
-                    for global_doc in global_docs:
-                        synonyms = global_doc.get("synonyms", {})
-                        if synonyms:
-                            # Accessing the score and updating it
-                            score = global_doc['synonyms']['score']
-                            new_score = score - 0.2
-                            # Updating the global collection with the new score
-                            synonyms_collection.update_one(
-                                {
-                                    f"synonyms.{l2_matched1}.synonym": str(attribute_name1)
-                                },
-                                {
-                                    "$set": {
-                                        f"synonyms.{l2_matched1}.$[elem].score": float(new_score)
-                                    }
-                                },
-                                array_filters=[
-                                    {
-                                        "elem.synonym": str(attribute_name1)
-                                    }
-                                ],
-                                upsert= True
-                            )
-
-                            logging.debug(f"Updated score for {attribute_name1} to {new_score} score, since the suggestion given {l2_matched1} was wrong by AI.")
-                            logging.debug(f"End of calculation logic.")
-                        else:
-                            logging.debug("No 'synonyms' found in the document.")
-
-                    #----------------------for storing new synonyms against the admin l2matched---------------------
-                    attribute_name2 = policy2.get("attributeName").lower()
-                    print("attribute_name of the application: ",attribute_name2)
-                    
-                    # Fetching l2_matched from doc2
-                    l2_matched2 = policy2.get("l2_matched")
-                    print("l2_matched by admin: ",l2_matched2)
-
-                    new_synonym = {
-                        "synonym": attribute_name2,
-                        "score": 1
+                    },
+                    {
+                        "$unwind": "$synonyms"
                     }
-                    synonyms_collection.update_one(
-                        {},
-                        {
-                            "$addToSet": {
-                                f"synonyms.{l2_matched2}": new_synonym
-                            }
-                        },
-                        upsert=True
-                    )
+                ]
 
-                    logging.debug(f"Inserted new synonym as suggested by admin: {new_synonym}")
-                    logging.debug(f"End of calculation logic")
+                global_docs = synonyms_collection.aggregate(pipeline)
+
+                for global_doc in global_docs:
+                    synonyms = global_doc.get("synonyms", {})
+                    if synonyms:
+                        # Accessing the score and updating it
+                        score = global_doc['synonyms']['score']
+                        new_score = score - 0.2
+                        # Updating the global collection with the new score
+                        synonyms_collection.update_one(
+                            {
+                                f"synonyms.{l2_matched1}.synonym": str(attribute_name1)
+                            },
+                            {
+                                "$set": {
+                                    f"synonyms.{l2_matched1}.$[elem].score": float(new_score)
+                                }
+                            },
+                            array_filters=[
+                                {
+                                    "elem.synonym": str(attribute_name1)
+                                }
+                            ],
+                            upsert= True
+                        )
+
+                        logging.debug(f"Updated score for {attribute_name1} to {new_score} score, since the suggestion given {l2_matched1} was wrong by AI.")
+                        logging.debug(f"End of calculation logic.")
+                    else:
+                        logging.debug("No 'synonyms' found in the document.")
+
+                #----------------------for storing new synonyms against the admin l2matched---------------------
+                attribute_name2 = policy2.get("attributeName").lower()
+                logging.debug(f"attribute_name of the application {attribute_name2}")
                 
-                elif policy1.get("matching_decision") == "synonyms" and policy2.get("matching_decision") == "synonyms" and policy1.get("l2_matched") == policy2.get("l2_matched"):
-                    logging.debug(f" checking and updating score where policy1(AI) and policy2(admin) are equal.")
-                    attribute_name = policy1.get("attributeName").lower()
-                    print("attribute_name of the application: ",attribute_name)
-                    
-                    # Fetching l2_matched from doc1
-                    l2_matched = policy1.get("l2_matched")
-                    print("l2_matched suggested by AI: ", l2_matched)
-                    
-                    # Finding the attribute in the global collection
-                    pipeline = [
-                        {
-                            "$match": {
-                                f"synonyms.{l2_matched}.synonym": attribute_name
-                            }
-                        },
-                        {
-                            "$project": {
-                                "_id": 0,
-                                "synonyms": {
-                                    "$filter": {
-                                        "input": f"$synonyms.{l2_matched}",
-                                        "as": "item",
-                                        "cond": { "$eq": ["$$item.synonym", attribute_name] }
-                                    }
+                # Fetching l2_matched from doc2
+                l2_matched2 = policy2.get("l2_matched")
+                logging.debug(f"l2_matched by admin {l2_matched2}")
+
+                new_synonym = {
+                    "synonym": attribute_name2,
+                    "score": 1
+                }
+                synonyms_collection.update_one(
+                    {},
+                    {
+                        "$addToSet": {
+                            f"synonyms.{l2_matched2}": new_synonym
+                        }
+                    },
+                    upsert=True
+                )
+
+                logging.debug(f"Inserted new synonym as suggested by admin: {new_synonym}")
+                logging.debug(f"End of calculation logic")
+            
+            elif policy1.get("matching_decision") == "synonyms" and policy2.get("matching_decision") == "synonyms" and policy1.get("l2_matched") == policy2.get("l2_matched"):
+                logging.debug(f" checking and updating score where policy1(AI) and policy2(admin) are equal.")
+                attribute_name = policy1.get("attributeName").lower()
+                logging.debug(f"attribute_name of the application {attribute_name}")
+                
+                # Fetching l2_matched from doc1
+                l2_matched = policy1.get("l2_matched")
+                logging.debug(f"l2_matched suggested by AI {l2_matched}")
+                
+                # Finding the attribute in the global collection
+                pipeline = [
+                    {
+                        "$match": {
+                            f"synonyms.{l2_matched}.synonym": attribute_name
+                        }
+                    },
+                    {
+                        "$project": {
+                            "_id": 0,
+                            "synonyms": {
+                                "$filter": {
+                                    "input": f"$synonyms.{l2_matched}",
+                                    "as": "item",
+                                    "cond": { "$eq": ["$$item.synonym", attribute_name] }
                                 }
                             }
-                        },
-                        {
-                            "$unwind": "$synonyms"
                         }
-                    ]
-
-                    global_docs = synonyms_collection.aggregate(pipeline)
-
-                    for global_doc in global_docs:
-
-                        synonyms = global_doc.get("synonyms", {})
-                        if synonyms:
-
-                            score = global_doc['synonyms']['score']
-
-                            if score is not None and score == 1:
-                                new_score = 1  # If the current score is already 1, keep it unchanged
-                            else:
-                                new_score = score + 0.2
-
-                            # Updating the global collection with the new score
-                            synonyms_collection.update_one(
-                                {
-                                    f"synonyms.{l2_matched}.synonym": str(attribute_name)
-                                },
-                                {
-                                    "$set": {
-                                        f"synonyms.{l2_matched}.$[elem].score": float(new_score)
-                                    }
-                                },
-                                array_filters=[
-                                    {
-                                        "elem.synonym": str(attribute_name)
-                                    }
-                                ],
-                                upsert= True
-                            )
-
-                            logging.debug(f"Updated score for {attribute_name} to {new_score} score, since the suggestion given {l2_matched} was right by AI.")
-                            logging.debug(f"End of calculation logic.")
-
-                        else:
-                            logging.debug("No 'synonyms' found in the document.")
-
-                elif policy1.get("matching_decision") == "" and policy2.get("matching_decision") == "" and policy2.get("l2_matched")!= "":
-                    logging.debug(f" checking and updating where matching decision is empty string.")
-                    
-                    attribute_name2 = policy2.get("attributeName").lower()
-                    print("attribute_name of the application: ",attribute_name2)
-                    
-                    # Fetching l2_matched from doc2
-                    l2_matched2 = policy2.get("l2_matched")
-                    print("l2_matched by admin: ",l2_matched2)
-
-                    new_synonym = {
-                        "synonym": attribute_name2,
-                        "score": 1
+                    },
+                    {
+                        "$unwind": "$synonyms"
                     }
-                    synonyms_collection.update_one(
-                        {},
-                        {
-                            "$addToSet": {
-                                f"synonyms.{l2_matched2}": new_synonym
-                            }
-                        },
-                        upsert=True
-                    )
-                    logging.debug(f"Inserted new synonym: {new_synonym}.")
-                    logging.debug(f"End of calculation logic.")
+                ]
 
-                else:
-                    logging.debug("no need to analyze and changed.")
+                global_docs = synonyms_collection.aggregate(pipeline)
+
+                for global_doc in global_docs:
+
+                    synonyms = global_doc.get("synonyms", {})
+                    if synonyms:
+
+                        score = global_doc['synonyms']['score']
+
+                        if score is not None and score == 1:
+                            new_score = 1  # If the current score is already 1, keep it unchanged
+                        else:
+                            new_score = score + 0.2
+
+                        # Updating the global collection with the new score
+                        synonyms_collection.update_one(
+                            {
+                                f"synonyms.{l2_matched}.synonym": str(attribute_name)
+                            },
+                            {
+                                "$set": {
+                                    f"synonyms.{l2_matched}.$[elem].score": float(new_score)
+                                }
+                            },
+                            array_filters=[
+                                {
+                                    "elem.synonym": str(attribute_name)
+                                }
+                            ],
+                            upsert= True
+                        )
+
+                        logging.debug(f"Updated score for {attribute_name} to {new_score} score, since the suggestion given {l2_matched} was right by AI.")
+                        logging.debug(f"End of calculation logic.")
+
+                    else:
+                        logging.debug("No 'synonyms' found in the document.")
+
+            elif policy1.get("matching_decision") == "" and policy2.get("matching_decision") == "" and policy2.get("l2_matched")!= "":
+                logging.debug(f" checking and updating where matching decision is empty string.")
+                
+                attribute_name2 = policy2.get("attributeName").lower()
+                logging.debug(f"attribute_name of the application {attribute_name2}")
+                
+                # Fetching l2_matched from doc2
+                l2_matched2 = policy2.get("l2_matched")
+                logging.debug(f"l2_matched by admin {l2_matched2}")
+
+                new_synonym = {
+                    "synonym": attribute_name2,
+                    "score": 1
+                }
+                synonyms_collection.update_one(
+                    {},
+                    {
+                        "$addToSet": {
+                            f"synonyms.{l2_matched2}": new_synonym
+                        }
+                    },
+                    upsert=True
+                )
+                logging.debug(f"Inserted new synonym: {new_synonym}.")
+                logging.debug(f"End of calculation logic.")
+
+            else:
+                logging.debug("no need to analyze and changed.")
 
         #compare fields and make calculation to update the in global collection
         return {"message": "Data saved successfully"}
+    except HTTPException:
+        raise
+    # except Exception as e:
+    #     print("faileddddddd")
     except Exception as e:
-        print("faileddddddd")
-        raise HTTPException(status_code=500, detail=str(e)) 
+        return ErrorResponseModel(error=str(e), code=500, message="Exception while running feedback.", errorCode= "Invalid")   
+        #raise HTTPException(status_code=500, detail=str(e)) 
+        
+
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=5000, debug=True)
+    uvicorn.run(app, host="0.0.0.0", port=5000)
