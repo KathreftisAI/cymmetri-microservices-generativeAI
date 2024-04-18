@@ -641,7 +641,7 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
                             'startDate': 'DATE',
                             'password': 'password',
                             'status': 'STRING',
-                            'profilePicture': 'profilePicture',
+                            'profilePicture': 'ARRAY',
                             'appUserId': 'STRING',
                             'landline': 'STRING'
                         }
