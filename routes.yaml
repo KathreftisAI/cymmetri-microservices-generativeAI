@@ -1,0 +1,154 @@
+---
+api: /v1/config/projects/{project}/routing/ingress/{id}
+meta:
+  id: generativeaiserviceGetPolicyMappedPOST
+  project: unotech
+spec:
+  modify:
+    headers:
+    - key: userid
+      op: set
+      value: auth.userId
+    - key: tenant
+      op: set
+      value: auth.tenantId
+    - key: roles
+      op: set
+      value: auth.roles
+    - key: principal
+      op: set
+      value: auth.sub
+    outputFormat: yaml
+    requestTemplate: ""
+    responseTemplate: ""
+    template: go
+  project: unotech
+  rule:
+    rule: and
+    clauses:
+      - rule: authenticated
+      - rule: match
+        eval: in
+        type: string
+        f2: args.auth.roles
+        f1: USER
+  source:
+    hosts:
+    - '*'
+    methods:
+    - '*'
+    port: 0
+    rewrite: ""
+    type: prefix
+    url: /generativeaisrvc/get_policy_mapped
+  targets:
+  - host: 10.0.1.4
+    port: 8080
+    scheme: http
+    type: ""
+    version: ""
+    weight: 100
+type: ingress-route
+---
+api: /v1/config/projects/{project}/routing/ingress/{id}
+meta:
+  id: generativeaiserviceMapFieldsToPolicy
+  project: unotech
+spec:
+  modify:
+    headers:
+    - key: userid
+      op: set
+      value: auth.userId
+    - key: tenant
+      op: set
+      value: auth.tenantId
+    - key: roles
+      op: set
+      value: auth.roles
+    - key: principal
+      op: set
+      value: auth.sub
+    outputFormat: yaml
+    requestTemplate: ""
+    responseTemplate: ""
+    template: go
+  project: unotech
+  rule:
+    rule: and
+    clauses:
+      - rule: authenticated
+      - rule: match
+        eval: in
+        type: string
+        f2: args.auth.roles
+        f1: USER
+  source:
+    hosts:
+    - '*'
+    methods:
+    - '*'
+    port: 0
+    rewrite: ""
+    type: prefix
+    url: /generativeaisrvc/map_fields_to_policy
+  targets:
+  - host: 10.0.1.4
+    port: 8080
+    scheme: http
+    type: ""
+    version: ""
+    weight: 100
+type: ingress-route
+---
+api: /v1/config/projects/{project}/routing/ingress/{id}
+meta:
+  id: generativeaiserviceSetFeedback
+  project: unotech
+spec:
+  modify:
+    headers:
+    - key: userid
+      op: set
+      value: auth.userId
+    - key: tenant
+      op: set
+      value: auth.tenantId
+    - key: roles
+      op: set
+      value: auth.roles
+    - key: principal
+      op: set
+      value: auth.sub
+    outputFormat: yaml
+    requestTemplate: ""
+    responseTemplate: ""
+    template: go
+  project: unotech
+  rule:
+    rule: and
+    clauses:
+      - rule: authenticated
+      - rule: match
+        eval: in
+        type: string
+        f2: args.auth.roles
+        f1: USER
+  source:
+    hosts:
+    - '*'
+    methods:
+    - '*'
+    port: 0
+    rewrite: ""
+    type: prefix
+    url: /generativeaisrvc/feedback
+  targets:
+  - host: 10.0.1.4
+    port: 8080
+    scheme: http
+    type: ""
+    version: ""
+    weight: 100
+type: ingress-route
+---
