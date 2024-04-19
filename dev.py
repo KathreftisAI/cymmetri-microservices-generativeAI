@@ -651,7 +651,7 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
 
 
 
-            l2 = ['department', 'employeeId', 'designation', 'appUpdatedDate', 'displayName', 'mobile', 'country', 'city', 'email', 'end_date', 'firstName', 'middleName', 'login', 'lastName', 'userType', 'dateOfBirth', 'endDate', 'startDate', 'password', 'status', 'profilePicture', 'appUserId', 'landline']
+            l2 = ['department', 'employeeId', 'designation', 'appUpdatedDate', 'displayName', 'mobile', 'country', 'city', 'email', 'end_date', 'firstName', 'middleName', 'login', 'lastName', 'userType', 'dateOfBirth', 'endDate', 'startDate', 'password', 'status', 'profilePicture', 'appUserId']
 
             l2_datatypes = {
                             'department': 'STRING',
@@ -678,8 +678,7 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
                             'password': 'password',
                             'status': 'STRING',
                             'profilePicture': 'ARRAY',
-                            'appUserId': 'STRING',
-                            'landline': 'STRING'
+                            'appUserId': 'STRING'
                         }
             
             l2, l2_datatypes, custom_attributes = add_custom_attributes_to_list(l2, l2_datatypes, tenant)
