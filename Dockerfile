@@ -9,7 +9,9 @@ COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Install Flask
-RUN pip install flask
+#RUN pip install flask
+
+#COPY config.yaml /config/config.yaml
 
 # Make port 5000 available to the world outside this container
 EXPOSE 8000
