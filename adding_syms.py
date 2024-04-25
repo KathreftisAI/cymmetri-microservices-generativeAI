@@ -1,6 +1,12 @@
 import pymongo
 
 from database.connection import get_master_collection
+import logging
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='[%(asctime)s] %(levelname)s in %(filename)s on %(lineno)d: %(message)s',
+)
 
 synonyms_dict = {
     "department": [
@@ -1797,5 +1803,4 @@ def add_synonyms():
   else:
     collection.insert_one({"synonyms": synonyms_dict})
     # Confirm insertion
-    print("Synonyms inserted successfully in master db.")
-
+    logging.debug(f"Synonyms inserted successfully in master db.")

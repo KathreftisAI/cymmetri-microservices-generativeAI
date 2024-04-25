@@ -24,6 +24,7 @@ def get_collection(tenant_name: str, collection_name: str):
         mongo_tenant_details = BASE_TENANT_STRING % tenant_name
         database = mongo_client[mongo_tenant_details]
         generic_collection = database[collection_name]
+        logging.debug(f" printing generic collection: {generic_collection}")
         return generic_collection
     except Exception as e:
         raise HTTPException(status_code=400, detail="MONGODB_CONNECTION_ERROR")
@@ -35,6 +36,7 @@ def get_master_collection(collection_name: str):
         master_db_name = data["CYMMETRI_DB_PREFIX"].split("-")[0]
         database = mongo_client[master_db_name]
         master_collection = database[collection_name]
+        logging.debug(f" printing master collection: {master_collection}")
         return master_collection
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))  # Providing exception details for better debugging
