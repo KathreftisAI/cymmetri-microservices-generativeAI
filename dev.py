@@ -21,8 +21,11 @@ import uvicorn
 import uuid
 from typing import Set
 import re
+from adding_syms import add_synonyms
 
 app = FastAPI()
+
+add_synonyms()
  
 logging.basicConfig(
     level=logging.DEBUG,
@@ -51,26 +54,32 @@ def ErrorResponseModel(error, code, message, errorCode):
 
 #--------- stored the payload as input----------
 def stored_input(tenant: str):
+    logging.debug(f"tenant is : {tenant}")
     return get_collection(tenant, "amaya_input")
 
 #--------------stored policymap for all users----------------
 def stored_response(tenant: str):
+    logging.debug(f"tenant is : {tenant}")
     return get_collection(tenant, "amaya_final_output")
 
 #------------subset policy map response--------------
 def stored_policy_mapped(tenant: str):
+    logging.debug(f"tenant is : {tenant}")
     return get_collection(tenant, "amaya_policyMap")
 
 #------final policymap by admin for training purpose---------
 def stored_admin_policymap(tenant: str):
+    logging.debug(f"tenant is : {tenant}")
     return get_collection(tenant, "amaya_final_policyMap")
 
 #----------custom attributes for appending in cymmetri list-----
 def retrieve_custom_attributes(tenant: str):
+    logging.debug(f"tenant is : {tenant}")
     return get_collection(tenant, "custome_attribute_master")
 
 #----------- score for confidence level
 def stored_score(tenant: str, appId: str):
+    logging.debug(f"tenant is : {tenant}")
     score_collection = get_collection(tenant, "amaya_score")
 
     # Check if index exists
@@ -118,20 +127,30 @@ def create_bad_request_response(response_val):
 
 #--------------for adding custome attributes in cymmetri field list------------
 def add_custom_attributes_to_list(l2, l2_datatypes, tenant):
+    logging.debug(f"tenant is : {tenant}")
 
     attribute_collection = retrieve_custom_attributes(tenant)
+    logging.debug(f"collection: {attribute_collection}")
 
     #query_result = attribute_collection.find({"attributeType": "USER", "status": True})
     query_result = attribute_collection.find({"attributeType": "USER", "status": True})
 
+    logging.debug(f"query is : {query_result}")
+
     
     logging.debug("query executed successfully")
     
-    custom_attributes = []  # This will track the names of custom attributes added
+    custom_attributes = []
+    logging.debug(f"defined empty custom attributes list")  # This will track the names of custom attributes added
 
     for result in query_result:
+        logging.debug(f"result is : {result}")
         custom_attribute_name = result['name']
-        custom_attribute_type = result['provAttributeType']
+        logging.debug(f"custome attribute name is: {custom_attribute_name}")
+        if 'provAttributeType' in result:
+            custom_attribute_type = result['provAttributeType']
+        else:
+            custom_attribute_type = 'STRING'
         
         if custom_attribute_name not in l2:
             l2.append(custom_attribute_name)
@@ -501,42 +520,6 @@ def map_nested_fields_to_policy(nested_field: Dict[str, Any], policy_mapping: Li
                 mapped_nested_data[field] = value
     return mapped_nested_data
 
-#----------for replacing the values in body
-# def replace_values_with_placeholders(body, mapped_data):
-#     if isinstance(body, dict):
-#         for key, value in body.items():
-#             if key in mapped_data:
-#                 body[key] = mapped_data[key]
-#             else:
-#                 replace_values_with_placeholders(value, mapped_data)
-#     elif isinstance(body, list):
-#         for i, item in enumerate(body):
-#             if isinstance(item, dict) or isinstance(item, list):
-#                 replace_values_with_placeholders(item, mapped_data)
-#     return body
-
-# def replace_values_with_placeholders(body, mapped_data):
-#     if isinstance(body, dict):
-#         for key, value in body.items():
-#             if key in mapped_data:
-#                 # Check if the original type in body is a list
-#                 if isinstance(value, list):
-#                     # Replace but maintain the list structure
-#                     body[key] = mapped_data[key]
-#                 else:
-#                     # Direct replacement for other types (mostly strings)
-#                     body[key] = mapped_data[key]
-#             else:
-#                 # Recurse into nested structures
-#                 replace_values_with_placeholders(value, mapped_data)
-#     elif isinstance(body, list):
-#         for i, item in enumerate(body):
-#             # Since we handle non-dict or non-list items at a higher level,
-#             # just recursively call the function for dicts and lists
-#             if isinstance(item, (dict, list)):
-#                 replace_values_with_placeholders(item, mapped_data)
-
-    return body
 
 def replace_values_with_placeholders(body, mapped_data):
     if isinstance(body, dict):
@@ -567,6 +550,7 @@ def replace_values_with_placeholders(body, mapped_data):
 #----------------------api for policy mapping-----------------------------
 @app.post('/generativeaisrvc/get_policy_mapped')
 async def get_mapped(data: dict, tenant: str = Header(...)):
+    logging.debug(f"tenant is : {tenant}")
     logging.debug(f"API call for auto policy mapping with the application")
     try:
 
@@ -683,14 +667,19 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
             
             l2, l2_datatypes, custom_attributes = add_custom_attributes_to_list(l2, l2_datatypes, tenant)
 
+            logging.debug(f"going into this state")
+            logging.debug(f"printing custom attributes: {custom_attributes}")
             #print("custom attributes: ", custom_attributes)
             for attribute in custom_attributes:
+                logging.debug(f"printing customr attributes: {attribute}")
                 preprocess_attribute = re.sub(r'[^a-zA-Z0-9]', '', attribute).lower()
+                logging.debug(f" preprocessing the attributes")
 
                 new_synonym = {
                         "synonym": preprocess_attribute,
                         "score": 1
                     }
+                logging.debug(f"completed this part going for update")
                 synonyms_collection.update_one(
                         {},
                         {
@@ -867,6 +856,7 @@ async def map_fields_to_policy(payload: Dict[str, Any]):
 #-------------------Api fpr storing the admin final policymap for training purpose-----------
 @app.post("/generativeaisrvc/feedback")
 async def store_data(payload: dict, tenant: str = Header(None)):
+    logging.debug(f"tenant is : {tenant}")
     logging.debug(f"API call for feedback given by admin")
 
     logging.debug(f"working on tenant: {tenant}")

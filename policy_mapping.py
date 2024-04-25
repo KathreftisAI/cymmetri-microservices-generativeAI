@@ -130,18 +130,27 @@ def add_custom_attributes_to_list(l2, l2_datatypes, tenant):
     logging.debug(f"tenant is : {tenant}")
 
     attribute_collection = retrieve_custom_attributes(tenant)
+    logging.debug(f"collection: {attribute_collection}")
 
     #query_result = attribute_collection.find({"attributeType": "USER", "status": True})
     query_result = attribute_collection.find({"attributeType": "USER", "status": True})
 
+    logging.debug(f"query is : {query_result}")
+
     
     logging.debug("query executed successfully")
     
-    custom_attributes = []  # This will track the names of custom attributes added
+    custom_attributes = []
+    logging.debug(f"defined empty custom attributes list")  # This will track the names of custom attributes added
 
     for result in query_result:
+        logging.debug(f"result is : {result}")
         custom_attribute_name = result['name']
-        custom_attribute_type = result['provAttributeType']
+        logging.debug(f"custome attribute name is: {custom_attribute_name}")
+        if 'provAttributeType' in result:
+            custom_attribute_type = result['provAttributeType']
+        else:
+            custom_attribute_type = 'STRING'
         
         if custom_attribute_name not in l2:
             l2.append(custom_attribute_name)
