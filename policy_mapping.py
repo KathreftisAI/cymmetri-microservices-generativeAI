@@ -133,6 +133,7 @@ def add_custom_attributes_to_list(l2, l2_datatypes, tenant):
 
     for result in query_result:
         custom_attribute_name = result['name']
+        #handled case of data presence/absence of keyword "provAttributeType" into database due to version updated, if present use this value else string
         if 'provAttributeType' in result:
             custom_attribute_type = result['provAttributeType']
         else:
