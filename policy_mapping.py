@@ -658,14 +658,18 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
             
             l2, l2_datatypes, custom_attributes = add_custom_attributes_to_list(l2, l2_datatypes, tenant)
 
+            logging.debug(f"going into this state")
             #print("custom attributes: ", custom_attributes)
             for attribute in custom_attributes:
+                logging.debug(f"printing customr attributes: {attribute}")
                 preprocess_attribute = re.sub(r'[^a-zA-Z0-9]', '', attribute).lower()
+                logging.debug(f" preprocessing the attributes")
 
                 new_synonym = {
                         "synonym": preprocess_attribute,
                         "score": 1
                     }
+                logging.debug(f"completed this part going for update")
                 synonyms_collection.update_one(
                         {},
                         {
