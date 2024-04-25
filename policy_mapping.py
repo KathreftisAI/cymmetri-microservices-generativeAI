@@ -21,8 +21,11 @@ import uvicorn
 import uuid
 from typing import Set
 import re
+from adding_syms import add_synonyms
 
 app = FastAPI()
+
+add_synonyms()
  
 logging.basicConfig(
     level=logging.DEBUG,
