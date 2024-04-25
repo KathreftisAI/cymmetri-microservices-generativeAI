@@ -17,7 +17,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 EXPOSE 8000
 
 # Define environment variable
-ENV CONFIG_FILE_PATH=/app/config.yaml
+#ENV CONFIG_FILE_PATH=/app/config.yaml
 
 # Copy the contents of the local directory into the container at /app
 COPY . /app 

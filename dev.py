@@ -21,8 +21,11 @@ import uvicorn
 import uuid
 from typing import Set
 import re
+from adding_syms import add_synonyms
 
 app = FastAPI()
+
+add_synonyms()
  
 logging.basicConfig(
     level=logging.DEBUG,
@@ -123,15 +126,17 @@ def add_custom_attributes_to_list(l2, l2_datatypes, tenant):
 
     #query_result = attribute_collection.find({"attributeType": "USER", "status": True})
     query_result = attribute_collection.find({"attributeType": "USER", "status": True})
-
     
     logging.debug("query executed successfully")
     
-    custom_attributes = []  # This will track the names of custom attributes added
+    custom_attributes = []
 
     for result in query_result:
         custom_attribute_name = result['name']
-        custom_attribute_type = result['provAttributeType']
+        if 'provAttributeType' in result:
+            custom_attribute_type = result['provAttributeType']
+        else:
+            custom_attribute_type = 'STRING'
         
         if custom_attribute_name not in l2:
             l2.append(custom_attribute_name)
@@ -471,8 +476,6 @@ def map_field_to_policy(field: str, policy_mapping: List[Dict[str, Any]]) -> str
     
     #Perform fuzzy matching if no direct match is found
     best_match, score = process.extractOne(field.lower(), [map_entry["internal"].lower() for map_entry in policy_mapping])
-    logging.debug(f"best match: {best_match}")
-    logging.debug(f"score: {score}")
     if score >= 70:  # Adjust the threshold as needed
         for map_entry in policy_mapping:
             if map_entry["internal"].lower() == best_match:
@@ -501,42 +504,6 @@ def map_nested_fields_to_policy(nested_field: Dict[str, Any], policy_mapping: Li
                 mapped_nested_data[field] = value
     return mapped_nested_data
 
-#----------for replacing the values in body
-# def replace_values_with_placeholders(body, mapped_data):
-#     if isinstance(body, dict):
-#         for key, value in body.items():
-#             if key in mapped_data:
-#                 body[key] = mapped_data[key]
-#             else:
-#                 replace_values_with_placeholders(value, mapped_data)
-#     elif isinstance(body, list):
-#         for i, item in enumerate(body):
-#             if isinstance(item, dict) or isinstance(item, list):
-#                 replace_values_with_placeholders(item, mapped_data)
-#     return body
-
-# def replace_values_with_placeholders(body, mapped_data):
-#     if isinstance(body, dict):
-#         for key, value in body.items():
-#             if key in mapped_data:
-#                 # Check if the original type in body is a list
-#                 if isinstance(value, list):
-#                     # Replace but maintain the list structure
-#                     body[key] = mapped_data[key]
-#                 else:
-#                     # Direct replacement for other types (mostly strings)
-#                     body[key] = mapped_data[key]
-#             else:
-#                 # Recurse into nested structures
-#                 replace_values_with_placeholders(value, mapped_data)
-#     elif isinstance(body, list):
-#         for i, item in enumerate(body):
-#             # Since we handle non-dict or non-list items at a higher level,
-#             # just recursively call the function for dicts and lists
-#             if isinstance(item, (dict, list)):
-#                 replace_values_with_placeholders(item, mapped_data)
-
-    return body
 
 def replace_values_with_placeholders(body, mapped_data):
     if isinstance(body, dict):
@@ -567,6 +534,7 @@ def replace_values_with_placeholders(body, mapped_data):
 #----------------------api for policy mapping-----------------------------
 @app.post('/generativeaisrvc/get_policy_mapped')
 async def get_mapped(data: dict, tenant: str = Header(...)):
+    logging.debug(f"tenant is : {tenant}")
     logging.debug(f"API call for auto policy mapping with the application")
     try:
 
@@ -867,6 +835,7 @@ async def map_fields_to_policy(payload: Dict[str, Any]):
 #-------------------Api fpr storing the admin final policymap for training purpose-----------
 @app.post("/generativeaisrvc/feedback")
 async def store_data(payload: dict, tenant: str = Header(None)):
+    logging.debug(f"tenant is : {tenant}")
     logging.debug(f"API call for feedback given by admin")
 
     logging.debug(f"working on tenant: {tenant}")

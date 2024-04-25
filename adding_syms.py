@@ -1,10 +1,12 @@
 import pymongo
 
-# Connect to MongoDB
-client = pymongo.MongoClient("mongodb://unoadmin:devDb123@10.0.1.6:27019,10.0.1.6:27020,10.0.1.6:27021/?authSource=admin&replicaSet=sso-rs&retryWrites=true&w=majority")
+from database.connection import get_master_collection
+import logging
 
-# Select database
-db = client["cymmetri"]
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='[%(asctime)s] %(levelname)s in %(filename)s on %(lineno)d: %(message)s',
+)
 
 synonyms_dict = {
     "department": [
@@ -1785,12 +1787,20 @@ synonyms_dict = {
     ]
   }
 
-# Select collection (you can create a new collection if it doesn't exist)
-collection = db["amayaSynonymsMaster"]
 
-# Insert the dictionary into the collection
-collection.insert_one({"synonyms": synonyms_dict})
 
-# Confirm insertion
-print("Data inserted successfully.")
 
+def add_synonyms():
+
+# Connect to MongoDB  
+  collection = get_master_collection('amayaSynonymsMaster')
+  # Select collection (you can create a new collection if it doesn't exist)
+  
+  count_synonyms = collection.count_documents({})
+
+  if count_synonyms > 0:
+    logging.debug(f"synonyms were already present, not adding again")
+  else:
+    collection.insert_one({"synonyms": synonyms_dict})
+    # Confirm insertion
+    logging.debug(f"Synonyms inserted successfully in master db.")
