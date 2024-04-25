@@ -54,26 +54,32 @@ def ErrorResponseModel(error, code, message, errorCode):
 
 #--------- stored the payload as input----------
 def stored_input(tenant: str):
+    logging.debug(f"tenant is : {tenant}")
     return get_collection(tenant, "amaya_input")
 
 #--------------stored policymap for all users----------------
 def stored_response(tenant: str):
+    logging.debug(f"tenant is : {tenant}")
     return get_collection(tenant, "amaya_final_output")
 
 #------------subset policy map response--------------
 def stored_policy_mapped(tenant: str):
+    logging.debug(f"tenant is : {tenant}")
     return get_collection(tenant, "amaya_policyMap")
 
 #------final policymap by admin for training purpose---------
 def stored_admin_policymap(tenant: str):
+    logging.debug(f"tenant is : {tenant}")
     return get_collection(tenant, "amaya_final_policyMap")
 
 #----------custom attributes for appending in cymmetri list-----
 def retrieve_custom_attributes(tenant: str):
+    logging.debug(f"tenant is : {tenant}")
     return get_collection(tenant, "custome_attribute_master")
 
 #----------- score for confidence level
 def stored_score(tenant: str, appId: str):
+    logging.debug(f"tenant is : {tenant}")
     score_collection = get_collection(tenant, "amaya_score")
 
     # Check if index exists
@@ -121,6 +127,7 @@ def create_bad_request_response(response_val):
 
 #--------------for adding custome attributes in cymmetri field list------------
 def add_custom_attributes_to_list(l2, l2_datatypes, tenant):
+    logging.debug(f"tenant is : {tenant}")
 
     attribute_collection = retrieve_custom_attributes(tenant)
 
@@ -534,6 +541,7 @@ def replace_values_with_placeholders(body, mapped_data):
 #----------------------api for policy mapping-----------------------------
 @app.post('/generativeaisrvc/get_policy_mapped')
 async def get_mapped(data: dict, tenant: str = Header(...)):
+    logging.debug(f"tenant is : {tenant}")
     logging.debug(f"API call for auto policy mapping with the application")
     try:
 
@@ -834,6 +842,7 @@ async def map_fields_to_policy(payload: Dict[str, Any]):
 #-------------------Api fpr storing the admin final policymap for training purpose-----------
 @app.post("/generativeaisrvc/feedback")
 async def store_data(payload: dict, tenant: str = Header(None)):
+    logging.debug(f"tenant is : {tenant}")
     logging.debug(f"API call for feedback given by admin")
 
     logging.debug(f"working on tenant: {tenant}")
