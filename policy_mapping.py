@@ -54,32 +54,26 @@ def ErrorResponseModel(error, code, message, errorCode):
 
 #--------- stored the payload as input----------
 def stored_input(tenant: str):
-    logging.debug(f"tenant is : {tenant}")
     return get_collection(tenant, "amaya_input")
 
 #--------------stored policymap for all users----------------
 def stored_response(tenant: str):
-    logging.debug(f"tenant is : {tenant}")
     return get_collection(tenant, "amaya_final_output")
 
 #------------subset policy map response--------------
 def stored_policy_mapped(tenant: str):
-    logging.debug(f"tenant is : {tenant}")
     return get_collection(tenant, "amaya_policyMap")
 
 #------final policymap by admin for training purpose---------
 def stored_admin_policymap(tenant: str):
-    logging.debug(f"tenant is : {tenant}")
     return get_collection(tenant, "amaya_final_policyMap")
 
 #----------custom attributes for appending in cymmetri list-----
 def retrieve_custom_attributes(tenant: str):
-    logging.debug(f"tenant is : {tenant}")
     return get_collection(tenant, "custome_attribute_master")
 
 #----------- score for confidence level
 def stored_score(tenant: str, appId: str):
-    logging.debug(f"tenant is : {tenant}")
     score_collection = get_collection(tenant, "amaya_score")
 
     # Check if index exists
@@ -127,26 +121,19 @@ def create_bad_request_response(response_val):
 
 #--------------for adding custome attributes in cymmetri field list------------
 def add_custom_attributes_to_list(l2, l2_datatypes, tenant):
-    logging.debug(f"tenant is : {tenant}")
 
     attribute_collection = retrieve_custom_attributes(tenant)
-    logging.debug(f"collection: {attribute_collection}")
 
     #query_result = attribute_collection.find({"attributeType": "USER", "status": True})
     query_result = attribute_collection.find({"attributeType": "USER", "status": True})
-
-    logging.debug(f"query is : {query_result}")
-
     
     logging.debug("query executed successfully")
     
     custom_attributes = []
-    logging.debug(f"defined empty custom attributes list")  # This will track the names of custom attributes added
 
     for result in query_result:
-        logging.debug(f"result is : {result}")
         custom_attribute_name = result['name']
-        logging.debug(f"custome attribute name is: {custom_attribute_name}")
+        #handled case of data presence/absence of keyword "provAttributeType" into database due to version updated, if present use this value else string
         if 'provAttributeType' in result:
             custom_attribute_type = result['provAttributeType']
         else:
@@ -490,8 +477,6 @@ def map_field_to_policy(field: str, policy_mapping: List[Dict[str, Any]]) -> str
     
     #Perform fuzzy matching if no direct match is found
     best_match, score = process.extractOne(field.lower(), [map_entry["internal"].lower() for map_entry in policy_mapping])
-    logging.debug(f"best match: {best_match}")
-    logging.debug(f"score: {score}")
     if score >= 70:  # Adjust the threshold as needed
         for map_entry in policy_mapping:
             if map_entry["internal"].lower() == best_match:
@@ -667,19 +652,14 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
             
             l2, l2_datatypes, custom_attributes = add_custom_attributes_to_list(l2, l2_datatypes, tenant)
 
-            logging.debug(f"going into this state")
-            logging.debug(f"printing custom attributes: {custom_attributes}")
             #print("custom attributes: ", custom_attributes)
             for attribute in custom_attributes:
-                logging.debug(f"printing customr attributes: {attribute}")
                 preprocess_attribute = re.sub(r'[^a-zA-Z0-9]', '', attribute).lower()
-                logging.debug(f" preprocessing the attributes")
 
                 new_synonym = {
                         "synonym": preprocess_attribute,
                         "score": 1
                     }
-                logging.debug(f"completed this part going for update")
                 synonyms_collection.update_one(
                         {},
                         {

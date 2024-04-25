@@ -1799,7 +1799,7 @@ def add_synonyms():
   count_synonyms = collection.count_documents({})
 
   if count_synonyms > 0:
-    print("synonyms were already present, not adding again")
+    logging.debug(f"synonyms were already present, not adding again")
   else:
     collection.insert_one({"synonyms": synonyms_dict})
     # Confirm insertion
