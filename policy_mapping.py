@@ -659,6 +659,7 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
             l2, l2_datatypes, custom_attributes = add_custom_attributes_to_list(l2, l2_datatypes, tenant)
 
             logging.debug(f"going into this state")
+            logging.debug(f"printing custom attributes: {custom_attributes}")
             #print("custom attributes: ", custom_attributes)
             for attribute in custom_attributes:
                 logging.debug(f"printing customr attributes: {attribute}")
