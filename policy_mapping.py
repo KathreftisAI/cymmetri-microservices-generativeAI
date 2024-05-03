@@ -782,6 +782,11 @@ async def map_fields_to_policy(payload: Dict[str, Any]):
 
     try:
         body = payload.get("body")
+
+        parsed_body = json.loads(payload["body"])
+
+        payload["body"] = parsed_body
+
         policy_mapping = payload.get("policyMapping")
 
         if not body:
@@ -802,7 +807,7 @@ async def map_fields_to_policy(payload: Dict[str, Any]):
             }
             return create_bad_request_response(response_val)
 
-        json_data = extract_user_data(body)
+        json_data = extract_user_data(parsed_body)
         json_data = json.dumps(json_data)
         json_data_ = json.loads(json_data)
 
@@ -820,7 +825,7 @@ async def map_fields_to_policy(payload: Dict[str, Any]):
                         mapped_data[field] = value
 
         print("mapped_data: ",mapped_data)
-        data = replace_values_with_placeholders(body, mapped_data)
+        data = replace_values_with_placeholders(parsed_body, mapped_data)
 
 
         #return data
