@@ -789,6 +789,8 @@ async def map_fields_to_policy(payload: Dict[str, Any]):
 
         policy_mapping = payload.get("policyMapping")
 
+        logging.debug(f"printing body: {parsed_body}")
+
         if not body:
             response_val = {
                 "data": None,
