@@ -347,7 +347,7 @@ def compare_lists_with_fuzzy(l1, l2, threshold, synonyms_collection):
         # Check similarity with original list (l2)
         for element_l2 in l2:
             el1 = str(element_l1).lower()
-            el1 = re.sub(r'[^a-zA-Z0-9]', '', el1).lower()
+            #el1 = re.sub(r'[^a-zA-Z0-9]', '', el1).lower()
             el2 = str(element_l2).lower()
             # similarity = fuzz.ratio(el1, el2)
             # if similarity > max_similarity and similarity >= threshold:
