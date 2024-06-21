@@ -154,24 +154,28 @@ def extract_user_data(response):
         logging.debug("Extracting the users from the nested json")
         user_data_list = []
 
+        def preprocess_key(key):
+            # Remove special characters and convert to lowercase
+            return re.sub(r'[\W_]+', '', key).lower()
+
         def is_user_data(obj):
-            # Convert keys in the object to lowercase for case-insensitive comparison
-            lower_case_obj_keys = {key.lower() for key in obj.keys()}
-            # Define user data keys in lowercase
+            # Convert keys in the object to preprocessed format for case-insensitive comparison
+            preprocessed_obj_keys = {preprocess_key(key) for key in obj.keys()}
+            # Define user data keys in preprocessed format
             user_keys = {'displayname', 'givenname', 'email', 'id', 'dateofbirth', 'mobile', 'firstname', 'name', 'password'}
-            # Check if object contains at least one of the common user data keys, ignoring case
-            return any(key in lower_case_obj_keys for key in user_keys)
+            # Check if object contains at least one of the common user data keys
+            return any(key in preprocessed_obj_keys for key in user_keys)
 
         def traverse(obj, original_keys=None):
             # Recursively traverse the JSON object
             if isinstance(obj, dict):
                 if is_user_data(obj):
                     # Convert keys in the user data to lowercase or handle as needed
-                    user_data_list.append({original_keys.get(k.lower(), k): v for k, v in obj.items()})
+                    user_data_list.append({original_keys.get(preprocess_key(k), k): v for k, v in obj.items()})
                 else:
                     for key, value in obj.items():
                         # Maintain original keys for nested dictionaries
-                        traverse(value, {**original_keys, **{key.lower(): key}})
+                        traverse(value, {**original_keys, **{preprocess_key(key): key}})
             elif isinstance(obj, list):
                 for item in obj:
                     traverse(item, original_keys)
@@ -179,6 +183,7 @@ def extract_user_data(response):
         traverse(response, {})
 
         return user_data_list
+    
     except Exception as e:
         logging.error(f"Error extracting user data: {e}")  
         raise HTTPException(status_code=400, detail="INVALID_JSON_DATA")
