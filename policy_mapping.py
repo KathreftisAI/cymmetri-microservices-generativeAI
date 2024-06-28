@@ -154,24 +154,28 @@ def extract_user_data(response):
         logging.debug("Extracting the users from the nested json")
         user_data_list = []
 
+        def preprocess_key(key):
+            # Remove special characters and convert to lowercase
+            return re.sub(r'[\W_]+', '', key).lower()
+
         def is_user_data(obj):
-            # Convert keys in the object to lowercase for case-insensitive comparison
-            lower_case_obj_keys = {key.lower() for key in obj.keys()}
-            # Define user data keys in lowercase
+            # Convert keys in the object to preprocessed format for case-insensitive comparison
+            preprocessed_obj_keys = {preprocess_key(key) for key in obj.keys()}
+            # Define user data keys in preprocessed format
             user_keys = {'displayname', 'givenname', 'email', 'id', 'dateofbirth', 'mobile', 'firstname', 'name', 'password'}
-            # Check if object contains at least one of the common user data keys, ignoring case
-            return any(key in lower_case_obj_keys for key in user_keys)
+            # Check if object contains at least one of the common user data keys
+            return any(key in preprocessed_obj_keys for key in user_keys)
 
         def traverse(obj, original_keys=None):
             # Recursively traverse the JSON object
             if isinstance(obj, dict):
                 if is_user_data(obj):
                     # Convert keys in the user data to lowercase or handle as needed
-                    user_data_list.append({original_keys.get(k.lower(), k): v for k, v in obj.items()})
+                    user_data_list.append({original_keys.get(preprocess_key(k), k): v for k, v in obj.items()})
                 else:
                     for key, value in obj.items():
                         # Maintain original keys for nested dictionaries
-                        traverse(value, {**original_keys, **{key.lower(): key}})
+                        traverse(value, {**original_keys, **{preprocess_key(key): key}})
             elif isinstance(obj, list):
                 for item in obj:
                     traverse(item, original_keys)
@@ -179,11 +183,88 @@ def extract_user_data(response):
         traverse(response, {})
 
         return user_data_list
+    
     except Exception as e:
         logging.error(f"Error extracting user data: {e}")  
         raise HTTPException(status_code=400, detail="INVALID_JSON_DATA")
     
 #---------------------------extracting keys, datatype, label and jsonpath----------------
+# def get_distinct_keys_and_datatypes(json_data):
+#     try:
+#         logging.debug("Extracting the properties from the JSON data")
+#         distinct_keys_datatypes = []
+
+#         def explore_json(obj, path=""):
+#             if isinstance(obj, dict):
+#                 for key, value in obj.items():
+#                     new_path = f"{path}.{key}" if path else key
+#                     if isinstance(value, dict) or isinstance(value, list):
+#                         explore_json(value, new_path)
+#                     else:
+#                         datatype = get_data_type(value)
+#                         distinct_keys_datatypes.append({
+#                             "jsonpath": new_path,
+#                             # Construct the label using parent keys if path is nested
+#                             "label": ".".join(new_path.split(".")[1:]) if "." in new_path else key,
+#                             "datatype": datatype,
+#                             "value": value
+#                         })
+#             elif isinstance(obj, list):
+#                 if not obj:  # Check if the list is empty
+#                     datatype = 'ARRAY'
+#                     distinct_keys_datatypes.append({
+#                         "jsonpath": path,
+#                         "label": path.split('.')[-1],  # Get the key name from the path
+#                         "datatype": datatype,
+#                         "value": obj
+#                     })
+#                 else:
+#                     new_path = path
+#                     if not path:
+#                         path = "root"
+#                     for index, item in enumerate(obj):
+#                         if isinstance(item, dict) or isinstance(item, list):
+#                             explore_json(item, new_path)
+#                         else:
+#                             datatype = get_data_type(item)
+#                             distinct_keys_datatypes.append({
+#                                 "jsonpath": new_path,
+#                                 "label": path,
+#                                 "datatype": datatype,
+#                                 "value": obj
+#                             })
+
+#         def get_data_type(value):
+#             if isinstance(value, str):
+#                 try:
+#                     parse_result = parse(value)
+#                     if (parse_result.strftime('%Y-%m-%d') == value) or (parse_result.strftime('%d-%m-%y') == value):
+#                         return 'DATE'
+#                     else:
+#                         if parse_result.time() != datetime.time(0, 0, 0):
+#                             return 'DATETIME'
+#                         else:
+#                             return 'STRING'
+#                 except (ValueError, OverflowError):
+#                     return 'STRING'
+#             elif isinstance(value, bool):
+#                 return 'BOOLEAN'
+#             elif isinstance(value, int):
+#                 return 'INTEGER'
+#             elif isinstance(value, float):
+#                 return 'FLOAT'
+#             elif isinstance(value, list):
+#                 return 'ARRAY'
+#             elif value is None:
+#                 return None
+#             else:
+#                 return 'CUSTOM'
+
+#         explore_json(json_data)
+#         return distinct_keys_datatypes
+#     except Exception as e:
+#         raise HTTPException(status_code=400, detail="INVALID_JSON_DATA")
+
 def get_distinct_keys_and_datatypes(json_data):
     try:
         logging.debug("Extracting the properties from the JSON data")
@@ -199,35 +280,23 @@ def get_distinct_keys_and_datatypes(json_data):
                         datatype = get_data_type(value)
                         distinct_keys_datatypes.append({
                             "jsonpath": new_path,
-                            # Construct the label using parent keys if path is nested
-                            "label": ".".join(new_path.split(".")[1:]) if "." in new_path else key,
+                            "label": new_path,
                             "datatype": datatype,
                             "value": value
                         })
             elif isinstance(obj, list):
-                if not obj:  # Check if the list is empty
-                    datatype = 'ARRAY'
-                    distinct_keys_datatypes.append({
-                        "jsonpath": path,
-                        "label": path.split('.')[-1],  # Get the key name from the path
-                        "datatype": datatype,
-                        "value": obj
-                    })
-                else:
-                    new_path = path
-                    if not path:
-                        path = "root"
-                    for index, item in enumerate(obj):
-                        if isinstance(item, dict) or isinstance(item, list):
-                            explore_json(item, new_path)
-                        else:
-                            datatype = get_data_type(item)
-                            distinct_keys_datatypes.append({
-                                "jsonpath": new_path,
-                                "label": path,
-                                "datatype": datatype,
-                                "value": obj
-                            })
+                for index, item in enumerate(obj):
+                    new_path = f"{path}[{index}]"
+                    if isinstance(item, dict) or isinstance(item, list):
+                        explore_json(item, new_path)
+                    else:
+                        datatype = get_data_type(item)
+                        distinct_keys_datatypes.append({
+                            "jsonpath": new_path,
+                            "label": new_path,
+                            "datatype": datatype,
+                            "value": item
+                        })
 
         def get_data_type(value):
             if isinstance(value, str):
@@ -255,7 +324,13 @@ def get_distinct_keys_and_datatypes(json_data):
             else:
                 return 'CUSTOM'
 
-        explore_json(json_data)
+        # Handle the top-level list
+        if isinstance(json_data, list):
+            for item in json_data:
+                explore_json(item)
+        else:
+            explore_json(json_data)
+
         return distinct_keys_datatypes
     except Exception as e:
         raise HTTPException(status_code=400, detail="INVALID_JSON_DATA")
@@ -277,7 +352,7 @@ def compare_lists_with_fuzzy(l1, l2, threshold, synonyms_collection):
         # Check similarity with original list (l2)
         for element_l2 in l2:
             el1 = str(element_l1).lower()
-            el1 = re.sub(r'[^a-zA-Z0-9]', '', el1).lower()
+            #el1 = re.sub(r'[^a-zA-Z0-9]', '', el1).lower()
             el2 = str(element_l2).lower()
             # similarity = fuzz.ratio(el1, el2)
             # if similarity > max_similarity and similarity >= threshold:
