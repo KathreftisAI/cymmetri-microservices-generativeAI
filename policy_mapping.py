@@ -162,7 +162,7 @@ def extract_user_data(response):
             # Convert keys in the object to preprocessed format for case-insensitive comparison
             preprocessed_obj_keys = {preprocess_key(key) for key in obj.keys()}
             # Define user data keys in preprocessed format
-            user_keys = {'displayname', 'givenname', 'email', 'id', 'dateofbirth', 'mobile', 'firstname', 'name', 'password'}
+            user_keys = {'displayname', 'givenname', 'email', 'id', 'dateofbirth', 'mobile', 'firstname', 'name', 'password', 'fullname', 'username'}
             # Check if object contains at least one of the common user data keys
             return any(key in preprocessed_obj_keys for key in user_keys)
 
@@ -188,82 +188,6 @@ def extract_user_data(response):
         logging.error(f"Error extracting user data: {e}")  
         raise HTTPException(status_code=400, detail="INVALID_JSON_DATA")
     
-#---------------------------extracting keys, datatype, label and jsonpath----------------
-# def get_distinct_keys_and_datatypes(json_data):
-#     try:
-#         logging.debug("Extracting the properties from the JSON data")
-#         distinct_keys_datatypes = []
-
-#         def explore_json(obj, path=""):
-#             if isinstance(obj, dict):
-#                 for key, value in obj.items():
-#                     new_path = f"{path}.{key}" if path else key
-#                     if isinstance(value, dict) or isinstance(value, list):
-#                         explore_json(value, new_path)
-#                     else:
-#                         datatype = get_data_type(value)
-#                         distinct_keys_datatypes.append({
-#                             "jsonpath": new_path,
-#                             # Construct the label using parent keys if path is nested
-#                             "label": ".".join(new_path.split(".")[1:]) if "." in new_path else key,
-#                             "datatype": datatype,
-#                             "value": value
-#                         })
-#             elif isinstance(obj, list):
-#                 if not obj:  # Check if the list is empty
-#                     datatype = 'ARRAY'
-#                     distinct_keys_datatypes.append({
-#                         "jsonpath": path,
-#                         "label": path.split('.')[-1],  # Get the key name from the path
-#                         "datatype": datatype,
-#                         "value": obj
-#                     })
-#                 else:
-#                     new_path = path
-#                     if not path:
-#                         path = "root"
-#                     for index, item in enumerate(obj):
-#                         if isinstance(item, dict) or isinstance(item, list):
-#                             explore_json(item, new_path)
-#                         else:
-#                             datatype = get_data_type(item)
-#                             distinct_keys_datatypes.append({
-#                                 "jsonpath": new_path,
-#                                 "label": path,
-#                                 "datatype": datatype,
-#                                 "value": obj
-#                             })
-
-#         def get_data_type(value):
-#             if isinstance(value, str):
-#                 try:
-#                     parse_result = parse(value)
-#                     if (parse_result.strftime('%Y-%m-%d') == value) or (parse_result.strftime('%d-%m-%y') == value):
-#                         return 'DATE'
-#                     else:
-#                         if parse_result.time() != datetime.time(0, 0, 0):
-#                             return 'DATETIME'
-#                         else:
-#                             return 'STRING'
-#                 except (ValueError, OverflowError):
-#                     return 'STRING'
-#             elif isinstance(value, bool):
-#                 return 'BOOLEAN'
-#             elif isinstance(value, int):
-#                 return 'INTEGER'
-#             elif isinstance(value, float):
-#                 return 'FLOAT'
-#             elif isinstance(value, list):
-#                 return 'ARRAY'
-#             elif value is None:
-#                 return None
-#             else:
-#                 return 'CUSTOM'
-
-#         explore_json(json_data)
-#         return distinct_keys_datatypes
-#     except Exception as e:
-#         raise HTTPException(status_code=400, detail="INVALID_JSON_DATA")
 
 def get_distinct_keys_and_datatypes(json_data):
     try:
@@ -624,9 +548,6 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
         # Store the received response directly into the input collection
         #input_collection.insert_one(data)
 
-        #logging.debug("Input respone saved successfully")
-        
-
         appId = data.get("appId")
         payload = data.get("payload")
 
@@ -634,6 +555,7 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
         if not appId:
             response_val = {
                 "data": None,
+                "statusCode" : status.HTTP_400_BAD_REQUEST,
                 "success": False,
                 "errorCode": "APPID_MISSING_ERROR",
                 "message": "Missing 'appId' in request"
@@ -644,33 +566,14 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
         elif not payload:
             response_val = {
                 "data": None,
+                "statusCode" : status.HTTP_400_BAD_REQUEST,
                 "success": False,
                 "errorCode": "PAYLOAD_MISSING_ERROR",
                 "message": "Missing 'payload' in request"
             }
             return create_bad_request_response(response_val)
-        
-        # Validate the format of 'payload'
-        # if not isinstance(data['payload'], dict):
-        #     if isinstance(data['payload'], list):
-        #         # Convert list of dictionaries to a single dictionary
-        #         converted_payload = {}
-        #         for item in data['payload']:
-        #             for key, value in item.items():
-        #                 converted_payload[key] = value
-        #         data['payload'] = converted_payload
-        #     else:
-        #         response_val = {
-        #         "data": None,
-        #         "success": False,
-        #         "errorCode": "MUST_BE_DICT_OR_LIST",
-        #         "message": "payload' must be a dictionary or list"
-        #         }
-        #     return create_bad_request_response(response_val)
  
         json_data = data.get('payload')
-
-        #print("json data is {}", json_data)
 
         json_data_ = extract_user_data(json_data)
 
@@ -841,13 +744,34 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
             return ResponseModel(data=data_response, message="Policy mapping generated successfully")
         
         else:
-            logging.info(f" Failed to extract the data from the response")
+            logging.debug("Failed to extract the data from json")
+            response_val = {
+                "data": None,
+                "statusCode" : status.HTTP_400_BAD_REQUEST,
+                "success": False,
+                "errorCode": "USER_DATA_ERROR",
+                "message": "Failed to extract the user data from the json, you can create a policy mapping manually"
+            }
+            return create_bad_request_response(response_val)
     
-    except HTTPException:
-        raise 
-
-    except Exception as e:
-        return ErrorResponseModel(error=str(e), code=500, message="Exception while running policy mappping.", errorCode= "Invalid")
+    except HTTPException as http_ex:
+        return ErrorResponseModel(
+            error=str(http_ex.detail),
+            code=http_ex.status_code,
+            message="Error processing the request",
+            errorCode="PROCESSING_ERROR"
+        )
+    except Exception as ex:
+        logging.error(f"Exception occurred: {ex}")
+        response_val = {
+                "data": None,
+                "statusCode" : status.HTTP_400_BAD_REQUEST,
+                "success": False,
+                "error": str(ex),
+                "message": "Exception while running policy mappping.",
+                "errorCode": "Unknown"
+            }
+        return create_bad_request_response(response_val)
 
 
 #------- Api for body populating----------
@@ -868,6 +792,7 @@ async def map_fields_to_policy(payload: Dict[str, Any]):
         if not body:
             response_val = {
                 "data": None,
+                "statusCode" : status.HTTP_400_BAD_REQUEST,
                 "success": False,
                 "errorCode": "BODY_MISSING_ERROR",
                 "message": "Missing 'body' in request"
@@ -877,6 +802,7 @@ async def map_fields_to_policy(payload: Dict[str, Any]):
         elif not policy_mapping:
             response_val = {
                 "data": None,
+                "statusCode" : status.HTTP_400_BAD_REQUEST,
                 "success": False,
                 "errorCode": "POLICY_MAPPING_MISSING_ERROR",
                 "message": "Missing 'policy_mapping' in request"
@@ -884,34 +810,59 @@ async def map_fields_to_policy(payload: Dict[str, Any]):
             return create_bad_request_response(response_val)
 
         json_data = extract_user_data(parsed_body)
-        json_data = json.dumps(json_data)
-        json_data_ = json.loads(json_data)
 
-        mapped_data = {}
+        if json_data:
+            json_data = json.dumps(json_data)
+            json_data_ = json.loads(json_data)
 
-        for item in json_data_:
-            for field, value in item.items():
-                if isinstance(value, dict):
-                    mapped_data[field] = map_nested_fields_to_policy(value, policy_mapping)
-                else:
-                    mapped_field, placeholder = map_field_to_policy(field, policy_mapping)
-                    if placeholder is not None:
-                        mapped_data[field] = placeholder
+            mapped_data = {}
+
+            for item in json_data_:
+                for field, value in item.items():
+                    if isinstance(value, dict):
+                        mapped_data[field] = map_nested_fields_to_policy(value, policy_mapping)
                     else:
-                        mapped_data[field] = value
+                        mapped_field, placeholder = map_field_to_policy(field, policy_mapping)
+                        if placeholder is not None:
+                            mapped_data[field] = placeholder
+                        else:
+                            mapped_data[field] = value
 
-        print("mapped_data: ",mapped_data)
-        data = replace_values_with_placeholders(parsed_body, mapped_data)
+            print("mapped_data: ",mapped_data)
+            data = replace_values_with_placeholders(parsed_body, mapped_data)
 
+        else:
+            logging.debug("Failed to extract the data from json")
+            response_val = {
+                "data": None,
+                "statusCode" : status.HTTP_400_BAD_REQUEST,
+                "success": False,
+                "errorCode": "USER_DATA_ERROR",
+                "message": "Failed to extract the user data from the json, you can fill manually"
+            }
+            return create_bad_request_response(response_val)
 
         #return data
         return ResponseModel(data=data, message="Autofill executed successfully")
 
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        return ErrorResponseModel(error=str(e), code=500, message="Exception while running autofill policy.", errorCode= "Invalid")
+    except HTTPException as http_ex:
+        return ErrorResponseModel(
+            error=str(http_ex.detail),
+            code=http_ex.status_code,
+            message="Error processing the request",
+            errorCode="PROCESSING_ERROR"
+        )
+    except Exception as ex:
+        logging.error(f"Exception occurred: {ex}")
+        response_val = {
+                "data": None,
+                "statusCode" : status.HTTP_400_BAD_REQUEST,
+                "success": False,
+                "error": str(ex),
+                "message": "Exception while running autofill",
+                "errorCode": "Unknown"
+            }
+        return create_bad_request_response(response_val)
 
 
 #-------------------Api fpr storing the admin final policymap for training purpose-----------
@@ -929,6 +880,7 @@ async def store_data(payload: dict, tenant: str = Header(None)):
         if not policyMapList :
             response_val = {
                 "data": None,
+                "statusCode" : status.HTTP_400_BAD_REQUEST,
                 "success": False,
                 "errorCode": "POLICYMAPLIST_MISSING",
                 "message": "Missing 'policyMapList' in request"
@@ -938,6 +890,7 @@ async def store_data(payload: dict, tenant: str = Header(None)):
         elif not request_id :
             response_val = {
                 "data": None,
+                "statusCode" : status.HTTP_400_BAD_REQUEST,
                 "success": False,
                 "errorCode": "REQUEST_ID_MISSING",
                 "message": "Missing 'request_id' in request"
@@ -1172,13 +1125,25 @@ async def store_data(payload: dict, tenant: str = Header(None)):
 
         #compare fields and make calculation to update the in global collection
         return {"message": "Data saved successfully"}
-    except HTTPException:
-        raise
-    # except Exception as e:
-    #     print("faileddddddd")
-    except Exception as e:
-        return ErrorResponseModel(error=str(e), code=500, message="Exception while running feedback.", errorCode= "Invalid")   
-        #raise HTTPException(status_code=500, detail=str(e)) 
+    
+    except HTTPException as http_ex:
+        return ErrorResponseModel(
+            error=str(http_ex.detail),
+            code=http_ex.status_code,
+            message="Error processing the request",
+            errorCode="PROCESSING_ERROR"
+        )
+    except Exception as ex:
+        logging.error(f"Exception occurred: {ex}")
+        response_val = {
+                "data": None,
+                "statusCode" : status.HTTP_400_BAD_REQUEST,
+                "success": False,
+                "error": str(ex),
+                "message": "Exception while running feedback.",
+                "errorCode": "Unknown"
+            }
+        return create_bad_request_response(response_val)
         
 
 
