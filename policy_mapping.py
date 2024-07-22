@@ -557,8 +557,8 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
                 "data": None,
                 "statusCode" : status.HTTP_400_BAD_REQUEST,
                 "success": False,
-                "errorCode": "APPID_MISSING_ERROR",
-                "message": "Missing 'appId' in request"
+                "message": "Missing 'appId' in request",
+                "errorCode": "GENERATIVEAI.APPID_MISSING_ERROR",
             }
             return create_bad_request_response(response_val)
         
@@ -568,8 +568,8 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
                 "data": None,
                 "statusCode" : status.HTTP_400_BAD_REQUEST,
                 "success": False,
-                "errorCode": "PAYLOAD_MISSING_ERROR",
-                "message": "Missing 'payload' in request"
+                "message": "Missing 'payload' in request",
+                "errorCode": "GENERATIVEAI.PAYLOAD_MISSING_ERROR",
             }
             return create_bad_request_response(response_val)
  
@@ -749,8 +749,8 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
                 "data": None,
                 "statusCode" : status.HTTP_400_BAD_REQUEST,
                 "success": False,
-                "errorCode": "USER_DATA_ERROR",
-                "message": "Failed to extract the user data from the json, you can create a policy mapping manually"
+                "message": "Failed to extract the user data from the json, you can create a policy mapping manually",
+                "errorCode": "GENERATIVEAI.USER_DATA_ERROR"
             }
             return create_bad_request_response(response_val)
     
@@ -769,7 +769,7 @@ async def get_mapped(data: dict, tenant: str = Header(...)):
                 "success": False,
                 "error": str(ex),
                 "message": "Exception while running policy mappping.",
-                "errorCode": "Unknown"
+                "errorCode": "GENERATIVEAI.UNKNOWN"
             }
         return create_bad_request_response(response_val)
 
@@ -794,7 +794,7 @@ async def map_fields_to_policy(payload: Dict[str, Any]):
                 "data": None,
                 "statusCode" : status.HTTP_400_BAD_REQUEST,
                 "success": False,
-                "errorCode": "BODY_MISSING_ERROR",
+                "errorCode": "GENERATIVEAI.BODY_MISSING_ERROR",
                 "message": "Missing 'body' in request"
             }
             return create_bad_request_response(response_val)
@@ -804,7 +804,7 @@ async def map_fields_to_policy(payload: Dict[str, Any]):
                 "data": None,
                 "statusCode" : status.HTTP_400_BAD_REQUEST,
                 "success": False,
-                "errorCode": "POLICY_MAPPING_MISSING_ERROR",
+                "errorCode": "GENERATIVEAI.POLICY_MAPPING_MISSING_ERROR",
                 "message": "Missing 'policy_mapping' in request"
             }
             return create_bad_request_response(response_val)
@@ -828,7 +828,7 @@ async def map_fields_to_policy(payload: Dict[str, Any]):
                         else:
                             mapped_data[field] = value
 
-            print("mapped_data: ",mapped_data)
+            logging.debug(f"mapped_data: {mapped_data}")
             data = replace_values_with_placeholders(parsed_body, mapped_data)
 
         else:
@@ -837,7 +837,7 @@ async def map_fields_to_policy(payload: Dict[str, Any]):
                 "data": None,
                 "statusCode" : status.HTTP_400_BAD_REQUEST,
                 "success": False,
-                "errorCode": "USER_DATA_ERROR",
+                "errorCode": "GENERATIVEAI.USER_DATA_ERROR",
                 "message": "Failed to extract the user data from the json, you can fill manually"
             }
             return create_bad_request_response(response_val)
@@ -850,7 +850,7 @@ async def map_fields_to_policy(payload: Dict[str, Any]):
             error=str(http_ex.detail),
             code=http_ex.status_code,
             message="Error processing the request",
-            errorCode="PROCESSING_ERROR"
+            errorCode="GENERATIVEAI.PROCESSING_ERROR"
         )
     except Exception as ex:
         logging.error(f"Exception occurred: {ex}")
@@ -860,7 +860,7 @@ async def map_fields_to_policy(payload: Dict[str, Any]):
                 "success": False,
                 "error": str(ex),
                 "message": "Exception while running autofill",
-                "errorCode": "Unknown"
+                "errorCode": "GENERATIVEAI.UNKNOWN"
             }
         return create_bad_request_response(response_val)
 
@@ -882,8 +882,8 @@ async def store_data(payload: dict, tenant: str = Header(None)):
                 "data": None,
                 "statusCode" : status.HTTP_400_BAD_REQUEST,
                 "success": False,
-                "errorCode": "POLICYMAPLIST_MISSING",
-                "message": "Missing 'policyMapList' in request"
+                "message": "Missing 'policyMapList' in request",
+                "errorCode": "GENERATIVEAI.POLICYMAPLIST_MISSING"
             }
             return create_bad_request_response(response_val)
         
@@ -892,7 +892,7 @@ async def store_data(payload: dict, tenant: str = Header(None)):
                 "data": None,
                 "statusCode" : status.HTTP_400_BAD_REQUEST,
                 "success": False,
-                "errorCode": "REQUEST_ID_MISSING",
+                "errorCode": "GENERATIVEAI.REQUEST_ID_MISSING",
                 "message": "Missing 'request_id' in request"
             }
             return create_bad_request_response(response_val)
@@ -1141,7 +1141,7 @@ async def store_data(payload: dict, tenant: str = Header(None)):
                 "success": False,
                 "error": str(ex),
                 "message": "Exception while running feedback.",
-                "errorCode": "Unknown"
+                "errorCode": "GENERATIVEAI.UNKNOWN"
             }
         return create_bad_request_response(response_val)
         
