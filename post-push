@@ -1,0 +1,5 @@
+#!/bin/sh
+
+# Push to Bitbucket
+git push origin1 dev
+
